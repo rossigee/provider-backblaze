@@ -18,7 +18,7 @@ package controller
 
 import (
 	"testing"
-	
+
 	"github.com/crossplane/crossplane-runtime/pkg/controller"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 )
@@ -26,7 +26,7 @@ import (
 func TestSetupFunctionExists(t *testing.T) {
 	// This is a basic test that verifies the Setup function exists
 	// We don't actually call it to avoid complex manager mocking
-	
+
 	options := controller.Options{
 		Logger: logging.NewNopLogger(),
 	}
@@ -35,7 +35,7 @@ func TestSetupFunctionExists(t *testing.T) {
 	if options.Logger == nil {
 		t.Error("Logger should not be nil")
 	}
-	
+
 	// Test that the setup function exists in the package
 	// (this test will compile successfully if the function signature is correct)
 	t.Log("Setup function exists and can be referenced")

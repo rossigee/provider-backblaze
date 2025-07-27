@@ -74,7 +74,7 @@ func TestProviderConfigSpec(t *testing.T) {
 			if tt.spec.BackblazeRegion == "" {
 				t.Error("BackblazeRegion should not be empty")
 			}
-			
+
 			// Test credentials source validation
 			validSources := []xpv1.CredentialsSource{
 				xpv1.CredentialsSourceNone,
@@ -83,7 +83,7 @@ func TestProviderConfigSpec(t *testing.T) {
 				xpv1.CredentialsSourceEnvironment,
 				xpv1.CredentialsSourceFilesystem,
 			}
-			
+
 			found := false
 			for _, valid := range validSources {
 				if tt.spec.Credentials.Source == valid {
@@ -91,7 +91,7 @@ func TestProviderConfigSpec(t *testing.T) {
 					break
 				}
 			}
-			
+
 			if !found {
 				t.Errorf("Invalid credentials source: %v", tt.spec.Credentials.Source)
 			}
@@ -159,7 +159,7 @@ func TestProviderConfigUsage(t *testing.T) {
 	}
 
 	if usage.ProviderConfigReference.Name != "test-provider-config" {
-		t.Errorf("Expected provider config ref test-provider-config, got %v", 
+		t.Errorf("Expected provider config ref test-provider-config, got %v",
 			usage.ProviderConfigReference.Name)
 	}
 

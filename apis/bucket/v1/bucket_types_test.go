@@ -161,9 +161,9 @@ func TestBucketSpec(t *testing.T) {
 			BucketDeletionPolicy: DeleteIfEmpty,
 			LifecycleRules: []LifecycleRule{
 				{
-					FileNamePrefix:               "logs/",
-					DaysFromUploadingToHiding:    &days30,
-					DaysFromHidingToDeleting:     &days90,
+					FileNamePrefix:            "logs/",
+					DaysFromUploadingToHiding: &days30,
+					DaysFromHidingToDeleting:  &days90,
 				},
 			},
 			CorsRules: []CorsRule{

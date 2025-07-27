@@ -33,7 +33,7 @@ func TestPolicyTypeDefinition(t *testing.T) {
 		},
 		Spec: PolicySpec{
 			ForProvider: PolicyParameters{
-				PolicyName: "test-bucket-policy",
+				PolicyName:  "test-bucket-policy",
 				AllowBucket: "test-bucket",
 				Description: "Allow all operations for test bucket",
 			},

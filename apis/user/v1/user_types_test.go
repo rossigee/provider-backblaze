@@ -62,7 +62,7 @@ func TestUserTypeDefinition(t *testing.T) {
 func TestUserCapabilities(t *testing.T) {
 	validCapabilities := []string{
 		"listKeys",
-		"writeKeys", 
+		"writeKeys",
 		"deleteKeys",
 		"listBuckets",
 		"listFiles",

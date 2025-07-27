@@ -24,7 +24,7 @@ import (
 
 func TestAddToScheme(t *testing.T) {
 	scheme := runtime.NewScheme()
-	
+
 	// Test that AddToScheme can be called without error
 	err := AddToScheme(scheme)
 	if err != nil {
@@ -40,7 +40,7 @@ func TestAddToScheme(t *testing.T) {
 
 func TestSchemeRegistration(t *testing.T) {
 	scheme := runtime.NewScheme()
-	
+
 	err := AddToScheme(scheme)
 	if err != nil {
 		t.Fatalf("AddToScheme failed: %v", err)

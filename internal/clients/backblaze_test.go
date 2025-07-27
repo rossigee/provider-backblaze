@@ -165,7 +165,7 @@ func TestNewBackblazeClientValidation(t *testing.T) {
 			name: "missing application key",
 			config: Config{
 				ApplicationKeyID: "test-key-id",
-				Region:          "us-west-001",
+				Region:           "us-west-001",
 			},
 			wantErr: "applicationKeyId and applicationKey are required",
 		},
@@ -220,8 +220,8 @@ func TestCustomEndpoint(t *testing.T) {
 	config := Config{
 		ApplicationKeyID: "test-key-id",
 		ApplicationKey:   "test-key",
-		Region:          "eu-central-003",
-		EndpointURL:     customEndpoint,
+		Region:           "eu-central-003",
+		EndpointURL:      customEndpoint,
 	}
 
 	client, err := NewBackblazeClient(config)
@@ -240,7 +240,7 @@ func TestBucketOperationInterfaces(t *testing.T) {
 	config := Config{
 		ApplicationKeyID: "test-key-id",
 		ApplicationKey:   "test-key",
-		Region:          "us-west-001",
+		Region:           "us-west-001",
 	}
 
 	client, err := NewBackblazeClient(config)

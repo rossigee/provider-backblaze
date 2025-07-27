@@ -37,11 +37,11 @@ type BackblazeClientInterface interface {
 
 // MockBackblazeClient implements a mock for testing
 type MockBackblazeClient struct {
-	bucketExists               func(ctx context.Context, bucketName string) (bool, error)
-	createBucket              func(ctx context.Context, bucketName, bucketType, region string) error
-	deleteBucket              func(ctx context.Context, bucketName string) error
-	getBucketLocation         func(ctx context.Context, bucketName string) (string, error)
-	deleteAllObjectsInBucket  func(ctx context.Context, bucketName string) error
+	bucketExists             func(ctx context.Context, bucketName string) (bool, error)
+	createBucket             func(ctx context.Context, bucketName, bucketType, region string) error
+	deleteBucket             func(ctx context.Context, bucketName string) error
+	getBucketLocation        func(ctx context.Context, bucketName string) (string, error)
+	deleteAllObjectsInBucket func(ctx context.Context, bucketName string) error
 }
 
 func (m *MockBackblazeClient) BucketExists(ctx context.Context, bucketName string) (bool, error) {
@@ -91,7 +91,7 @@ func (c *testExternal) Observe(ctx context.Context, mg interface{}) (interface{}
 	}
 
 	bucketName := cr.GetBucketName()
-	
+
 	exists, err := c.service.BucketExists(ctx, bucketName)
 	if err != nil {
 		return nil, errors.Wrap(err, errObserveBucket)
@@ -290,12 +290,12 @@ func TestExternalObserve(t *testing.T) {
 			}
 
 			observation, ok := observationRaw.(struct{ ResourceExists, ResourceUpToDate bool })
-		if !ok {
-			t.Errorf("Unexpected observation type: %T", observationRaw)
-			return
-		}
+			if !ok {
+				t.Errorf("Unexpected observation type: %T", observationRaw)
+				return
+			}
 			if observation.ResourceExists != tt.expectedExists {
-				t.Errorf("Expected ResourceExists=%v, got %v", 
+				t.Errorf("Expected ResourceExists=%v, got %v",
 					tt.expectedExists, observation.ResourceExists)
 			}
 		})
@@ -304,9 +304,9 @@ func TestExternalObserve(t *testing.T) {
 
 func TestExternalCreate(t *testing.T) {
 	tests := []struct {
-		name         string
-		bucket       *v1.Bucket
-		mockBehavior func(*MockBackblazeClient)
+		name          string
+		bucket        *v1.Bucket
+		mockBehavior  func(*MockBackblazeClient)
 		expectedError bool
 	}{
 		{
@@ -412,9 +412,9 @@ func TestExternalCreate(t *testing.T) {
 
 func TestExternalDelete(t *testing.T) {
 	tests := []struct {
-		name         string
-		bucket       *v1.Bucket
-		mockBehavior func(*MockBackblazeClient)
+		name          string
+		bucket        *v1.Bucket
+		mockBehavior  func(*MockBackblazeClient)
 		expectedError bool
 	}{
 		{
@@ -560,7 +560,7 @@ func TestObserveWithWrongType(t *testing.T) {
 
 	// Pass wrong type (simple string instead of bucket)
 	wrongType := "not-a-bucket"
-	
+
 	_, err := external.Observe(context.Background(), wrongType)
 	if err == nil {
 		t.Error("Expected error when passing wrong type")
