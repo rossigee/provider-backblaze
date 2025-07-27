@@ -1,0 +1,97 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  GO_VERSION: '1.23'
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get Version
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "version_no_v=${VERSION#v}" >> $GITHUB_OUTPUT
+
+      - name: Build and Package
+        run: |
+          make generate
+          make build-bin
+          make docker-build
+          make xpkg-build
+
+      - name: Build and Push Docker Images
+        run: |
+          # Build and push to GitHub Container Registry
+          docker tag ghcr.io/rossigee/provider-backblaze:latest ghcr.io/rossigee/provider-backblaze:${{ steps.version.outputs.version_no_v }}
+          docker push ghcr.io/rossigee/provider-backblaze:${{ steps.version.outputs.version_no_v }}
+          docker push ghcr.io/rossigee/provider-backblaze:latest
+
+      - name: Generate Changelog
+        id: changelog
+        run: |
+          # Simple changelog generation
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREVIOUS_TAG" ]; then
+            echo "## Changes since $PREVIOUS_TAG" > changelog.txt
+            git log --oneline $PREVIOUS_TAG..HEAD >> changelog.txt
+          else
+            echo "## Initial Release" > changelog.txt
+            echo "First release of provider-backblaze for Crossplane" >> changelog.txt
+            echo "" >> changelog.txt
+            echo "### Features" >> changelog.txt
+            echo "- S3-compatible Backblaze B2 bucket management" >> changelog.txt
+            echo "- Application key management with fine-grained permissions" >> changelog.txt
+            echo "- S3-compatible policy support" >> changelog.txt
+            echo "- Lifecycle rules and CORS configuration" >> changelog.txt
+            echo "- Cost-effective alternative to AWS S3" >> changelog.txt
+          fi
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          release_name: Release ${{ steps.version.outputs.version }}
+          body_path: changelog.txt
+          draft: false
+          prerelease: false
+
+      - name: Upload Release Assets
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: _output/provider-backblaze.xpkg
+          asset_name: provider-backblaze-${{ steps.version.outputs.version_no_v }}.xpkg
+          asset_content_type: application/octet-stream

@@ -1,0 +1,52 @@
+apiVersion: user.backblaze.crossplane.io/v1
+kind: User
+metadata:
+  name: my-app-key
+spec:
+  forProvider:
+    # Human-readable name for the application key
+    keyName: "my-application-key"
+    
+    # Capabilities this key should have
+    # Available capabilities:
+    # - listKeys, writeKeys, deleteKeys: manage application keys
+    # - listBuckets, writeBuckets: manage buckets  
+    # - listFiles, readFiles, shareFiles, writeFiles, deleteFile: manage files
+    capabilities:
+    - "listBuckets"
+    - "listFiles" 
+    - "readFiles"
+    - "writeFiles"
+    - "deleteFile"
+    
+    # Optional: Restrict key to specific bucket
+    # bucketID: "bucket-id-from-backblaze"
+    
+    # Optional: Restrict key to files with specific prefix
+    # namePrefix: "uploads/"
+    
+    # Optional: Key expiration (in seconds, max 1000 days)
+    # validDurationInSeconds: 86400  # 1 day
+    
+    # Where to store the generated application key secret
+    writeSecretToRef:
+      name: my-app-key-secret
+      namespace: default
+
+  providerConfigRef:
+    name: default
+
+  deletionPolicy: Delete
+---
+# This secret will be created automatically by the provider
+# and will contain the generated application key credentials
+apiVersion: v1
+kind: Secret
+metadata:
+  name: my-app-key-secret
+  namespace: default
+type: Opaque
+# Data will be populated by the provider:
+# data:
+#   applicationKeyId: <base64-encoded-key-id>
+#   applicationKey: <base64-encoded-application-key>

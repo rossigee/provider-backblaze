@@ -1,0 +1,50 @@
+apiVersion: bucket.backblaze.crossplane.io/v1
+kind: Bucket
+metadata:
+  name: my-storage-bucket
+spec:
+  forProvider:
+    # Bucket name - must be globally unique across all Backblaze B2
+    bucketName: my-unique-bucket-name-12345
+    
+    # Region where the bucket should be created
+    region: us-west-001
+    
+    # Bucket access type: allPrivate (default) or allPublic
+    bucketType: allPrivate
+    
+    # How to handle bucket deletion
+    # DeleteIfEmpty: only delete if bucket is empty
+    # DeleteAll: delete all objects then delete bucket
+    bucketDeletionPolicy: DeleteIfEmpty
+    
+    # Optional: Lifecycle rules for automatic file management
+    lifecycleRules:
+    - fileNamePrefix: "logs/"
+      daysFromUploadingToHiding: 30
+      daysFromHidingToDeleting: 90
+    - fileNamePrefix: "temp/"
+      daysFromUploadingToHiding: 1
+      daysFromHidingToDeleting: 7
+    
+    # Optional: CORS configuration for web applications
+    corsRules:
+    - corsRuleName: "Allow web access"
+      allowedOrigins:
+      - "https://mywebsite.com"
+      - "https://*.mywebsite.com"
+      allowedHeaders:
+      - "Authorization"
+      - "Content-Type"
+      allowedOperations:
+      - "b2_download_file_by_name"
+      - "b2_upload_file"
+      maxAgeSeconds: 3600
+
+  providerConfigRef:
+    name: default
+
+  # Crossplane deletion policy
+  # Delete: remove the bucket when this resource is deleted
+  # Orphan: leave the bucket in Backblaze when this resource is deleted  
+  deletionPolicy: Delete
