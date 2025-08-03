@@ -120,12 +120,6 @@ jobs:
         with:
           sarif_file: gosec-results.sarif
 
-      - name: Run Nancy vulnerability scanner
-        run: |
-          # Nancy has been deprecated, using govulncheck instead for better coverage
-          echo "Using govulncheck for comprehensive vulnerability scanning"
-        continue-on-error: true
-
       - name: Check for secrets with TruffleHog
         uses: trufflesecurity/trufflehog@main
         with:
