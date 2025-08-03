@@ -2,9 +2,14 @@ name: CI
 
 on:
   push:
-    branches: [ master ]
+    branches: 
+      - master
+      - release-*
   pull_request:
-    branches: [ master ]
+    branches:
+      - master
+      - release-*
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -16,6 +21,7 @@ env:
   GO_VERSION: '1.24.5'
   GOLANGCI_VERSION: 'latest'
   GOLANGCILINT_VERSION: '2.3.1'
+  DOCKER_BUILDX_VERSION: 'v0.11.2'
   # Registry configuration
   PRIMARY_REGISTRY: ghcr.io/rossigee
   ENABLE_HARBOR_PUBLISH: false
@@ -23,7 +29,7 @@ env:
 
 jobs:
   detect-noop:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     outputs:
       noop: ${{ steps.noop.outputs.should_skip }}
     steps:
@@ -36,7 +42,7 @@ jobs:
           do_not_skip: '["workflow_dispatch", "schedule", "push"]'
 
   lint:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: detect-noop
     if: needs.detect-noop.outputs.noop != 'true'
 
@@ -47,12 +53,12 @@ jobs:
           submodules: true
 
       - name: Setup Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
 
       - name: Cache Go Dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cache/go-build
@@ -74,7 +80,7 @@ jobs:
         run: make lint
 
   check-diff:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: detect-noop
     if: needs.detect-noop.outputs.noop != 'true'
 
@@ -85,12 +91,12 @@ jobs:
           submodules: true
 
       - name: Setup Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
 
       - name: Cache Go Dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cache/go-build
@@ -108,7 +114,7 @@ jobs:
           git diff --exit-code
 
   unit-tests:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: detect-noop
     if: needs.detect-noop.outputs.noop != 'true'
 
@@ -120,12 +126,12 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
 
       - name: Cache Go Dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cache/go-build
@@ -142,15 +148,66 @@ jobs:
           make test
 
       - name: Upload Coverage Reports
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           file: ./coverage.out
           verbose: true
 
+  basic-security-scan:
+    runs-on: ubuntu-24.04
+    needs: detect-noop
+    if: needs.detect-noop.outputs.noop != 'true'
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Cache Go Dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Vendor Dependencies
+        run: go mod vendor
+
+      - name: Run Go Vulnerability Check
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+      - name: Run Basic Gosec Security Scanner
+        uses: securecodewarrior/github-action-gosec@master
+        with:
+          args: '-fmt json -out gosec-results.json ./...'
+        continue-on-error: true
+
+      - name: Upload Gosec Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gosec-results
+          path: gosec-results.json
+          retention-days: 7
+
   publish-artifacts:
-    runs-on: ubuntu-22.04
-    needs: [lint, check-diff, unit-tests]
+    runs-on: ubuntu-24.04
+    needs: [lint, check-diff, unit-tests, basic-security-scan]
     if: github.ref == 'refs/heads/master'
     permissions:
       contents: read
@@ -165,12 +222,12 @@ jobs:
           submodules: true
 
       - name: Setup Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
 
       - name: Cache Go Dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cache/go-build
