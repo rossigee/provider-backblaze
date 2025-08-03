@@ -1,0 +1,144 @@
+apiVersion: bucket.backblaze.crossplane.io/v1
+kind: Bucket
+metadata:
+  name: my-storage-bucket
+spec:
+  forProvider:
+    # Bucket name - must be globally unique across all Backblaze B2
+    bucketName: my-unique-bucket-name-12345
+    
+    # Region where the bucket should be created
+    region: us-west-001
+    
+    # Bucket access type: allPrivate (default) or allPublic
+    bucketType: allPrivate
+    
+    # How to handle bucket deletion
+    # DeleteIfEmpty: only delete if bucket is empty
+    # DeleteAll: delete all objects then delete bucket
+    bucketDeletionPolicy: DeleteIfEmpty
+    
+    # Optional: Lifecycle rules for automatic file management
+    lifecycleRules:
+    - fileNamePrefix: "logs/"
+      daysFromUploadingToHiding: 30
+      daysFromHidingToDeleting: 90
+    - fileNamePrefix: "temp/"
+      daysFromUploadingToHiding: 1
+      daysFromHidingToDeleting: 7
+    
+    # Optional: CORS configuration for web applications
+    corsRules:
+    - corsRuleName: "Allow web access"
+      allowedOrigins:
+      - "https://mywebsite.com"
+      - "https://*.mywebsite.com"
+      allowedHeaders:
+      - "Authorization"
+      - "Content-Type"
+      allowedOperations:
+      - "b2_download_file_by_name"
+      - "b2_upload_file"
+      maxAgeSeconds: 3600
+
+  providerConfigRef:
+    name: default
+
+  # Crossplane deletion policy
+  # Delete: remove the bucket when this resource is deleted
+  # Orphan: leave the bucket in Backblaze when this resource is deleted  
+  deletionPolicy: Delete
+...
+
+---
+apiVersion: backblaze.crossplane.io/v1beta1
+kind: ProviderConfig
+metadata:
+  name: default
+spec:
+  # Backblaze B2 region where resources should be created
+  # Common regions: us-west-001, us-west-002, eu-central-003
+  backblazeRegion: us-west-001
+  
+  # Optional: Custom endpoint URL for Backblaze B2 S3-compatible API
+  # If not specified, defaults to https://s3.{region}.backblazeb2.com
+  # endpointURL: https://s3.us-west-001.backblazeb2.com
+  
+  credentials:
+    source: Secret
+    apiSecretRef:
+      namespace: crossplane-system
+      name: backblaze-creds
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: backblaze-creds
+  namespace: crossplane-system
+type: Opaque
+data:
+  # Base64 encoded Backblaze B2 Application Key ID
+  # Get this from: Backblaze console -> App Keys -> Create Application Key
+  applicationKeyId: <base64-encoded-key-id>
+  
+  # Base64 encoded Backblaze B2 Application Key  
+  # This is the secret key associated with the Application Key ID above
+  applicationKey: <base64-encoded-application-key>
+...
+
+---
+apiVersion: user.backblaze.crossplane.io/v1
+kind: User
+metadata:
+  name: my-app-key
+spec:
+  forProvider:
+    # Human-readable name for the application key
+    keyName: "my-application-key"
+    
+    # Capabilities this key should have
+    # Available capabilities:
+    # - listKeys, writeKeys, deleteKeys: manage application keys
+    # - listBuckets, writeBuckets: manage buckets  
+    # - listFiles, readFiles, shareFiles, writeFiles, deleteFile: manage files
+    capabilities:
+    - "listBuckets"
+    - "listFiles" 
+    - "readFiles"
+    - "writeFiles"
+    - "deleteFile"
+    
+    # Optional: Restrict key to specific bucket
+    # bucketID: "bucket-id-from-backblaze"
+    
+    # Optional: Restrict key to files with specific prefix
+    # namePrefix: "uploads/"
+    
+    # Optional: Key expiration (in seconds, max 1000 days)
+    # validDurationInSeconds: 86400  # 1 day
+    
+    # Where to store the generated application key secret
+    writeSecretToRef:
+      name: my-app-key-secret
+      namespace: default
+
+  providerConfigRef:
+    name: default
+
+  deletionPolicy: Delete
+---
+# This secret will be created automatically by the provider
+# and will contain the generated application key credentials
+apiVersion: v1
+kind: Secret
+metadata:
+  name: my-app-key-secret
+  namespace: default
+type: Opaque
+# Data will be populated by the provider:
+# data:
+#   applicationKeyId: <base64-encoded-key-id>
+#   applicationKey: <base64-encoded-application-key>
+...
+
+---

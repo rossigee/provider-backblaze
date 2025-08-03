@@ -2,8 +2,6 @@ module github.com/rossigee/provider-backblaze
 
 go 1.24.5
 
-toolchain go1.24.5
-
 require (
 	github.com/alecthomas/kingpin/v2 v2.4.0
 	github.com/aws/aws-sdk-go v1.54.19
