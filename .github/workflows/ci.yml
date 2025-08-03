@@ -148,7 +148,7 @@ jobs:
           file: ./coverage.out
           verbose: true
 
-  basic-security-scan:
+  security-scan:
     runs-on: ubuntu-24.04
     needs: detect-noop
     if: needs.detect-noop.outputs.noop != 'true'
@@ -191,15 +191,24 @@ jobs:
           args: '-no-fail -fmt sarif -out gosec-results.sarif ./...'
         continue-on-error: true
 
+      - name: Fix Gosec SARIF format
+        if: always() && hashFiles('gosec-results.sarif') != ''
+        run: |
+          if [ -f gosec-results.sarif ]; then
+            jq '.runs[].results[].locations[].physicalLocation.artifactLocation.uri |= if . == null or . == "" then "." else . end' gosec-results.sarif > gosec-results-fixed.sarif
+            mv gosec-results-fixed.sarif gosec-results.sarif
+          fi
+
       - name: Upload Gosec Results
         uses: github/codeql-action/upload-sarif@v3
         if: always() && hashFiles('gosec-results.sarif') != ''
         with:
           sarif_file: gosec-results.sarif
+          category: gosec
 
   publish-artifacts:
     runs-on: ubuntu-24.04
-    needs: [lint, check-diff, unit-tests, basic-security-scan]
+    needs: [lint, check-diff, unit-tests, security-scan]
     if: github.ref == 'refs/heads/master'
     permissions:
       contents: read
@@ -251,7 +260,6 @@ jobs:
           # Build and push to GitHub Container Registry (primary)
           echo "Repository: ${{ github.repository }}"
           echo "Repository owner: ${{ github.repository_owner }}"
-          make build
           make publish REGISTRY_ORGS="ghcr.io/${{ github.repository_owner }}" XPKG_REG_ORGS="ghcr.io/${{ github.repository_owner }}"
 
       - name: Build and Push to Harbor (Optional)

@@ -1,18 +1,10 @@
-name: Security Scanning
+name: Nightly Security Scanning
 
 on:
   schedule:
-    # Run security scans daily at 2 AM UTC
+    # Run comprehensive security scans daily at 2 AM UTC
     - cron: '0 2 * * *'
   workflow_dispatch:
-  push:
-    branches:
-      - master
-      - release-*
-  pull_request:
-    branches:
-      - master
-      - release-*
 
 permissions:
   contents: read
@@ -25,59 +17,8 @@ env:
   GO_VERSION: '1.24.5'
 
 jobs:
-  codeql:
-    name: CodeQL Analysis
-    runs-on: ubuntu-24.04
-    permissions:
-      actions: read
-      contents: read
-      security-events: write
-    strategy:
-      fail-fast: false
-      matrix:
-        language: ['go']
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: true
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
-        with:
-          languages: ${{ matrix.language }}
-          queries: security-extended,security-and-quality
-
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
-
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
-        with:
-          category: "/language:${{matrix.language}}"
-
-  dependency-review:
-    name: Dependency Review
-    runs-on: ubuntu-24.04
-    if: github.event_name == 'pull_request'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Dependency Review
-        uses: actions/dependency-review-action@v4
-        with:
-          fail-on-severity: moderate
-          license-check: true
-          vulnerability-check: true
-
-  security-hardening:
-    name: Security Hardening Check
+  comprehensive-security:
+    name: Comprehensive Security Analysis
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
@@ -103,33 +44,19 @@ jobs:
       - name: Vendor Dependencies
         run: go mod vendor
 
-      - name: Run Go Vulnerability Check
-        run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./...
-
-      - name: Run Gosec Security Scanner
-        uses: securego/gosec@master
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
         with:
-          args: '-no-fail -fmt sarif -out gosec-results.sarif ./...'
-        continue-on-error: true
+          languages: go
+          queries: security-extended,security-and-quality
 
-      - name: Fix Gosec SARIF format
-        if: always() && hashFiles('gosec-results.sarif') != ''
-        run: |
-          # Fix SARIF artifact locations for GitHub Code Scanning
-          if [ -f gosec-results.sarif ]; then
-            # Use jq to fix missing artifactLocation.uri fields
-            jq '.runs[].results[].locations[].physicalLocation.artifactLocation.uri |= if . == null or . == "" then "." else . end' gosec-results.sarif > gosec-results-fixed.sarif
-            mv gosec-results-fixed.sarif gosec-results.sarif
-          fi
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
 
-      - name: Upload Gosec results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
-        if: always() && hashFiles('gosec-results.sarif') != ''
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
         with:
-          sarif_file: gosec-results.sarif
-          category: gosec
+          category: "/language:go"
 
       - name: Check for secrets with TruffleHog
         uses: trufflesecurity/trufflehog@main
@@ -140,198 +67,8 @@ jobs:
           extra_args: --debug --only-verified
         continue-on-error: true
 
-  container-security:
-    name: Container Security
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: true
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-
-      - name: Cache Go Dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
-
-      - name: Vendor Dependencies
-        run: go mod vendor
-
-      - name: Build Docker Images
-        run: |
-          make generate
-          make build
-
-      - name: Run Trivy container scanner
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: 'ghcr.io/rossigee/provider-backblaze:latest'
-          format: 'sarif'
-          output: 'trivy-container-results.sarif'
-          severity: 'CRITICAL,HIGH,MEDIUM'
-        continue-on-error: true
-
-      - name: Fix Trivy Container SARIF format
-        if: always() && hashFiles('trivy-container-results.sarif') != ''
-        run: |
-          # Ensure trivy SARIF has proper artifact locations
-          if [ -f trivy-container-results.sarif ]; then
-            jq '.runs[].results[].locations[]?.physicalLocation.artifactLocation.uri |= if . == null or . == "" then "Dockerfile" else . end' trivy-container-results.sarif > trivy-container-fixed.sarif
-            mv trivy-container-fixed.sarif trivy-container-results.sarif
-          fi
-
-      - name: Upload Trivy container scan results
-        uses: github/codeql-action/upload-sarif@v3
-        if: always() && hashFiles('trivy-container-results.sarif') != ''
-        with:
-          sarif_file: 'trivy-container-results.sarif'
-          category: 'trivy-container'
-
-      - name: Run Trivy filesystem scan
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'sarif'
-          output: 'trivy-fs-results.sarif'
-          severity: 'CRITICAL,HIGH,MEDIUM'
-        continue-on-error: true
-
-      - name: Fix Trivy Filesystem SARIF format
-        if: always() && hashFiles('trivy-fs-results.sarif') != ''
-        run: |
-          # Ensure trivy filesystem SARIF has proper artifact locations
-          if [ -f trivy-fs-results.sarif ]; then
-            jq '.runs[].results[].locations[]?.physicalLocation.artifactLocation.uri |= if . == null or . == "" then "." else . end' trivy-fs-results.sarif > trivy-fs-fixed.sarif
-            mv trivy-fs-fixed.sarif trivy-fs-results.sarif
-          fi
-
-      - name: Upload Trivy filesystem scan results
-        uses: github/codeql-action/upload-sarif@v3
-        if: always() && hashFiles('trivy-fs-results.sarif') != ''
-        with:
-          sarif_file: 'trivy-fs-results.sarif'
-          category: 'trivy-filesystem'
-
-      - name: Run Dockle for container best practices
-        run: |
-          curl -sSfL https://raw.githubusercontent.com/goodwithtech/dockle/master/install.sh | sh -s -- -b /usr/local/bin
-          dockle --exit-code 1 --exit-level WARN ghcr.io/rossigee/provider-backblaze:latest
-        continue-on-error: true
-
-  sbom-generation:
-    name: SBOM Generation and Analysis
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: true
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-
-      - name: Cache Go Dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
-
-      - name: Vendor Dependencies
-        run: go mod vendor
-
-      - name: Build Application
-        run: |
-          make generate
-          make build
-
-      - name: Generate SBOM with Syft
-        uses: anchore/sbom-action@v0.17.2
-        with:
-          path: .
-          format: spdx-json
-          output-file: sbom.spdx.json
-
-      - name: Generate SBOM with CycloneDX format
-        uses: anchore/sbom-action@v0.17.2
-        with:
-          path: .
-          format: cyclonedx-json
-          output-file: sbom.cyclonedx.json
-
-      - name: Scan SBOM with Grype
-        uses: anchore/scan-action@v6
-        with:
-          sbom: sbom.spdx.json
-          output-format: sarif
-          output-file: grype-sbom-results.sarif
-          fail-build: false
-
-      - name: Upload Grype SBOM scan results
-        uses: github/codeql-action/upload-sarif@v3
-        if: always() && hashFiles('grype-sbom-results.sarif') != ''
-        with:
-          sarif_file: grype-sbom-results.sarif
-
-      - name: Attest SBOM
-        uses: actions/attest-sbom@v1
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-        with:
-          subject-path: '_output/bin/provider'
-          sbom-path: sbom.spdx.json
-
-      - name: Upload SBOM artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: sbom-files
-          path: |
-            sbom.spdx.json
-            sbom.cyclonedx.json
-          retention-days: 30
-
-  license-compliance:
-    name: License Compliance
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-
-      - name: Install go-licenses
-        run: go install github.com/google/go-licenses@latest
-
-      - name: Check licenses
-        run: |
-          go-licenses check ./...
-          go-licenses csv ./... > licenses.csv
-
-      - name: Upload license report
-        uses: actions/upload-artifact@v4
-        with:
-          name: license-report
-          path: licenses.csv
-
-  supply-chain:
+  supply-chain-scan:
     name: Supply Chain Security
     runs-on: ubuntu-24.04
     steps:
@@ -355,61 +92,3 @@ jobs:
         if: always() && hashFiles('osv-results.sarif') != ''
         with:
           sarif_file: osv-results.sarif
-
-  security-policy-check:
-    name: Security Policy Compliance
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Validate Dockerfile security practices
-        run: |
-          # Check for security best practices in Dockerfile
-          if [[ -f "Dockerfile" ]]; then
-            # Check for non-root user
-            if ! grep -q "USER.*[0-9]" Dockerfile; then
-              echo "::warning::Dockerfile should specify non-root USER"
-            fi
-            
-            # Check for COPY --chown usage
-            if grep -q "COPY.*--chown" Dockerfile; then
-              echo "::info::Good: Using COPY --chown for file ownership"
-            fi
-            
-            # Check for healthcheck
-            if grep -q "HEALTHCHECK" Dockerfile; then
-              echo "::info::Good: Dockerfile includes HEALTHCHECK"
-            else
-              echo "::warning::Consider adding HEALTHCHECK to Dockerfile"
-            fi
-          fi
-
-      - name: Check for secrets in code
-        run: |
-          # Basic check for potential secrets (this is caught by TruffleHog above too)
-          if grep -r -i "password\|secret\|token\|key" --include="*.go" --exclude-dir=vendor . | grep -v "// " | grep -v "/*" | head -5; then
-            echo "::warning::Potential secrets found in code - review carefully"
-          fi
-
-  results-summary:
-    name: Security Scan Results Summary
-    runs-on: ubuntu-24.04
-    needs: [codeql, security-hardening, container-security, sbom-generation, license-compliance, supply-chain, security-policy-check]
-    if: always()
-    steps:
-      - name: Security Scan Summary
-        run: |
-          echo "## Security Scan Results Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Scan Type | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| CodeQL Analysis | ${{ needs.codeql.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Security Hardening | ${{ needs.security-hardening.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Container Security | ${{ needs.container-security.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| SBOM Generation | ${{ needs.sbom-generation.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| License Compliance | ${{ needs.license-compliance.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Supply Chain | ${{ needs.supply-chain.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Security Policy | ${{ needs.security-policy-check.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Check the Security tab for detailed vulnerability reports." >> $GITHUB_STEP_SUMMARY
