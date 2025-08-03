@@ -2,13 +2,23 @@ name: CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ master ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ master ]
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
 
 env:
-  GO_VERSION: '1.23'
-  GOLANGCI_VERSION: 'v1.55'
+  GO_VERSION: '1.24.5'
+  GOLANGCI_VERSION: 'latest'
+  GOLANGCILINT_VERSION: '2.3.1'
+  # Registry configuration
+  PRIMARY_REGISTRY: ghcr.io/rossigee
+  ENABLE_HARBOR_PUBLISH: false
+  ENABLE_UPBOUND_PUBLISH: false
 
 jobs:
   detect-noop:
@@ -53,11 +63,14 @@ jobs:
       - name: Vendor Dependencies
         run: go mod vendor
 
+      - name: Install Crossplane CLI
+        run: |
+          mkdir -p .cache/tools/linux_x86_64
+          curl -fsSLo .cache/tools/linux_x86_64/crossplane-cli-v1.20.0 --create-dirs https://releases.crossplane.io/stable/v1.20.0/bin/linux_amd64/crank?source=build
+          chmod +x .cache/tools/linux_x86_64/crossplane-cli-v1.20.0
+
       - name: Lint
-        uses: golangci/golangci-lint-action@v3
-        with:
-          version: ${{ env.GOLANGCI_VERSION }}
-          args: --timeout=10m
+        run: make lint
 
   check-diff:
     runs-on: ubuntu-22.04
@@ -90,7 +103,7 @@ jobs:
 
       - name: Check Diff
         run: |
-          make generate
+          make reviewable
           git diff --exit-code
 
   unit-tests:
@@ -125,16 +138,13 @@ jobs:
 
       - name: Run Unit Tests
         run: |
-          # Skip unit tests until DeepCopy generation is fixed
-          echo "Unit tests temporarily disabled due to API generation issues"
-          # make test
+          make test
 
       - name: Upload Coverage Reports
-        if: false  # Disable until tests are working
         uses: codecov/codecov-action@v3
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          file: ./coverage.txt
+          file: ./coverage.out
           verbose: true
 
   build:
@@ -166,43 +176,56 @@ jobs:
       - name: Vendor Dependencies
         run: go mod vendor
 
-      - name: Generate Code
+      - name: Install Crossplane CLI
         run: |
-          make generate
+          mkdir -p .cache/tools/linux_x86_64
+          curl -fsSLo .cache/tools/linux_x86_64/crossplane-cli-v1.20.0 --create-dirs https://releases.crossplane.io/stable/v1.20.0/bin/linux_amd64/crank?source=build
+          chmod +x .cache/tools/linux_x86_64/crossplane-cli-v1.20.0
 
-      - name: Build Binary
+      - name: Build Binary and Package
         run: |
-          make build-bin
-
-      - name: Build Container Image
-        run: |
-          make docker-build
-
-      - name: Build Package
-        run: |
-          make xpkg-build
+          make build
 
       - name: Upload Package
         uses: actions/upload-artifact@v4
         with:
           name: package
-          path: _output/*.xpkg
+          path: _output/xpkg/
+          if-no-files-found: error
 
   publish-artifacts:
     runs-on: ubuntu-22.04
     needs: [lint, check-diff, unit-tests, build]
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/master'
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          submodules: true
 
       - name: Setup Go
         uses: actions/setup-go@v4
         with:
           go-version: ${{ env.GO_VERSION }}
+
+      - name: Vendor Dependencies
+        run: go mod vendor
+
+      - name: Install Crossplane CLI
+        run: |
+          mkdir -p .cache/tools/linux_x86_64
+          curl -fsSLo .cache/tools/linux_x86_64/crossplane-cli-v1.20.0 --create-dirs https://releases.crossplane.io/stable/v1.20.0/bin/linux_amd64/crank?source=build
+          chmod +x .cache/tools/linux_x86_64/crossplane-cli-v1.20.0
+
+      - name: Build Binaries
+        run: |
+          make build
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -214,22 +237,35 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and Push
-        run: |
-          # Get version from git
-          VERSION=$(git describe --tags --always --dirty)
-          
-          # Build and push to GitHub Container Registry
-          make docker-build docker-push IMG=ghcr.io/rossigee/provider-backblaze:${VERSION}
-          make docker-build docker-push IMG=ghcr.io/rossigee/provider-backblaze:latest
-
-      - name: Create Release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Login to Harbor Registry (Optional)
+        if: env.ENABLE_HARBOR_PUBLISH == 'true'
+        uses: docker/login-action@v3
         with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          draft: false
-          prerelease: false
+          registry: harbor.golder.lan
+          username: ${{ secrets.HARBOR_USERNAME }}
+          password: ${{ secrets.HARBOR_PASSWORD }}
+
+      - name: Build and Push to Primary Registry
+        run: |
+          # Build and push to GitHub Container Registry (primary)
+          echo "Repository: ${{ github.repository }}"
+          echo "Repository owner: ${{ github.repository_owner }}"
+          make publish REGISTRY_ORGS="ghcr.io/${{ github.repository_owner }}"
+
+      - name: Build and Push to Harbor (Optional)
+        if: env.ENABLE_HARBOR_PUBLISH == 'true'
+        run: |
+          # Push to Harbor Registry
+          make publish REGISTRY_ORGS="harbor.golder.lan/library"
+
+      - name: Build and Push to Upbound Registry (Optional)
+        if: env.ENABLE_UPBOUND_PUBLISH == 'true'
+        run: |
+          # Push to Upbound Registry (only if token is available)
+          if [ -n "$UPBOUND_TOKEN" ]; then
+            make publish REGISTRY_ORGS="xpkg.upbound.io/crossplane-contrib"
+          else
+            echo "UPBOUND_TOKEN not available, skipping Upbound registry push"
+          fi
+        env:
+          UPBOUND_TOKEN: ${{ secrets.UPBOUND_TOKEN }}

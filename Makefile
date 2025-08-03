@@ -1,165 +1,99 @@
-# Set Shell to bash, otherwise some targets fail with dash/zsh etc.
-SHELL := /bin/bash
-
-# Disable built-in rules
-MAKEFLAGS += --no-builtin-rules
-MAKEFLAGS += --no-builtin-variables
-.SUFFIXES:
-.SECONDARY:
-.DEFAULT_GOAL := help
-
-# Project variables
+# Project Setup
 PROJECT_NAME := provider-backblaze
-PROJECT_REPO := github.com/rossigee/provider-backblaze
+PROJECT_REPO := github.com/rossigee/$(PROJECT_NAME)
 
-# Version and Image settings
-VERSION ?= v0.1.0
-IMG ?= ghcr.io/rossigee/provider-backblaze:$(VERSION)
-IMG_LATEST ?= ghcr.io/rossigee/provider-backblaze:latest
+PLATFORMS ?= linux_amd64 linux_arm64
+-include build/makelib/common.mk
 
-# Binary settings
-BIN_FILENAME := provider
-BUILD_DIR := ./_output
+# Setup Output
+-include build/makelib/output.mk
 
-# Go settings
-GO_VERSION := 1.23
-GO_LDFLAGS := -s -w
-CGO_ENABLED := 0
+# Setup Go
+# Override golangci-lint version for modern Go support
+GOLANGCILINT_VERSION ?= 2.3.1
+NPROCS ?= 1
+GO_TEST_PARALLEL := $(shell echo $$(( $(NPROCS) / 2 )))
+GO_STATIC_PACKAGES = $(GO_PROJECT)/cmd/provider
+GO_LDFLAGS += -X $(GO_PROJECT)/internal/version.Version=$(VERSION)
+GO_SUBDIRS += cmd internal apis
+GO111MODULE = on
+-include build/makelib/golang.mk
 
-# Tools
-CONTROLLER_GEN_VERSION := v0.16.0
-CONTROLLER_GEN := $(BUILD_DIR)/controller-gen
+# Setup Kubernetes tools
+UP_VERSION = v0.28.0
+UP_CHANNEL = stable
+UPTEST_VERSION = v0.11.1
+-include build/makelib/k8s_tools.mk
 
-.PHONY: help
-help: ## Show this help
-	@grep -E -h '\s##\s' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+# Setup Images
+IMAGES = provider-backblaze
+-include build/makelib/imagelight.mk
 
-.PHONY: all
-all: build ## Build all artifacts
+# Setup XPKG - Standardized registry configuration
+# Primary registry: GitHub Container Registry under rossigee
+XPKG_REG_ORGS ?= ghcr.io/rossigee
+XPKG_REG_ORGS_NO_PROMOTE ?= ghcr.io/rossigee
 
-.PHONY: build
-build: build-bin docker-build ## Build binary and container image
+# Optional registries (can be enabled via environment variables)
+# To enable Harbor: export ENABLE_HARBOR_PUBLISH=true make publish XPKG_REG_ORGS=harbor.golder.lan/library
+# To enable Upbound: export ENABLE_UPBOUND_PUBLISH=true make publish XPKG_REG_ORGS=xpkg.upbound.io/crossplane-contrib
+XPKGS = provider-backblaze
+-include build/makelib/xpkg.mk
 
-.PHONY: build-bin
-build-bin: export CGO_ENABLED = 0
-build-bin: fmt vet ## Build binary
-	@mkdir -p $(BUILD_DIR)
-	go build -ldflags "$(GO_LDFLAGS)" -o $(BUILD_DIR)/$(BIN_FILENAME) ./cmd/provider
+# NOTE: we force image building to happen prior to xpkg build so that we ensure
+# image is present in daemon.
+xpkg.build.provider-backblaze: do.build.images
 
-.PHONY: test
-test: test-unit ## Run all tests
+# Setup Package Metadata
+export CROSSPLANE_VERSION := $(shell go list -m -f '{{.Version}}' github.com/crossplane/crossplane)
+-include build/makelib/local.xpkg.mk
+-include build/makelib/controlplane.mk
 
-.PHONY: test-unit
-test-unit: ## Run unit tests
-	go test -race -covermode atomic -coverprofile=coverage.out ./...
+# Targets
 
-.PHONY: fmt
-fmt: ## Run 'go fmt' against code
-	go fmt ./...
+# run `make submodules` after cloning the repository for the first time.
+submodules:
+	@git submodule sync
+	@git submodule update --init --recursive
 
-.PHONY: vet
-vet: ## Run 'go vet' against code
-	go vet ./...
+# NOTE: the build submodule currently overrides XDG_CACHE_HOME in order to
+# force the Helm 3 to use the .work/helm directory. This causes Go on Linux
+# machines to use that directory as the build cache as well. We should adjust
+# this behavior in the build submodule because it is also causing Linux users
+# to duplicate their build cache, but for now we just make it easier to identify
+# its location in CI so that we cache between builds.
+go.cachedir:
+	@go env GOCACHE
 
-.PHONY: lint
-lint: golangci-lint ## Run linters
+# NOTE: we must ensure up is installed in tool cache prior to build as including the k8s_tools
+# machinery prior to the xpkg machinery sets UP to point to tool cache.
+build.init: $(UP)
 
-.PHONY: golangci-lint
-golangci-lint: ## Run golangci-lint
-	@which golangci-lint > /dev/null || (echo "golangci-lint not found. Install it from https://golangci-lint.run/usage/install/" && exit 1)
-	golangci-lint run --timeout 5m --out-format colored-line-number ./...
+# This is for running out-of-cluster locally, and is for convenience. Running
+# this make target will print out the command which was used. For more control,
+# try running the binary directly with different arguments.
+run: go.build
+	@$(INFO) Running Crossplane locally out-of-cluster . . .
+	@# To see other arguments that can be provided, run the command with --help instead
+	$(GO_OUT_DIR)/provider --debug
 
-.PHONY: generate
-generate: ## Generate code and manifests
-	@go generate ./...
+# NOTE: we ensure up is installed prior to running platform-specific packaging steps in xpkg.build.
+xpkg.build: $(UP)
 
-.PHONY: manifests
-manifests: controller-gen ## Generate CRD manifests
-	$(CONTROLLER_GEN) crd:generateEmbeddedObjectMeta=true paths="./apis/..." output:crd:artifacts:config=package/crds
+# Install CRDs into a cluster
+install-crds: generate
+	kubectl apply -f package/crds
 
-.PHONY: docker-build
-docker-build: ## Build container image
-	docker build -t $(IMG) -f Dockerfile .
-	docker tag $(IMG) $(IMG_LATEST)
+# Uninstall CRDs from a cluster
+uninstall-crds:
+	kubectl delete -f package/crds
 
-.PHONY: docker-push
-docker-push: ## Push container image
-	docker push $(IMG)
-	docker push $(IMG_LATEST)
-
-.PHONY: docker-run
-docker-run: docker-build ## Run container image locally
-	docker run --rm -it $(IMG)
-
-.PHONY: install
-install: manifests ## Install CRDs into the K8s cluster specified in ~/.kube/config
-	kubectl apply -f package/crds/
-
-.PHONY: uninstall
-uninstall: manifests ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config
-	kubectl delete -f package/crds/
-
-.PHONY: deploy
-deploy: manifests ## Deploy controller to the K8s cluster specified in ~/.kube/config
-	kubectl apply -f package/
-
-.PHONY: undeploy
-undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config
-	kubectl delete -f package/
-
-.PHONY: clean
-clean: ## Clean build artifacts
-	rm -rf $(BUILD_DIR)
-	docker rmi $(IMG) $(IMG_LATEST) 2>/dev/null || true
-
-.PHONY: mod-tidy
-mod-tidy: ## Run go mod tidy
-	go mod tidy
-
-.PHONY: mod-verify
-mod-verify: ## Run go mod verify
-	go mod verify
-
-.PHONY: xpkg-build
-xpkg-build: ## Build Crossplane package
-	@mkdir -p $(BUILD_DIR)
-	kubectl crossplane build provider -f package/ -o $(BUILD_DIR)/$(PROJECT_NAME).xpkg
-
-.PHONY: xpkg-push
-xpkg-push: xpkg-build ## Push Crossplane package
-	kubectl crossplane push provider $(BUILD_DIR)/$(PROJECT_NAME).xpkg $(IMG)
-
-# Tool targets
-.PHONY: controller-gen
-controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary
-$(CONTROLLER_GEN):
-	@mkdir -p $(BUILD_DIR)
-	GOBIN=$(abspath $(BUILD_DIR)) go install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_GEN_VERSION)
-
-# Development targets
-.PHONY: run
-run: generate fmt vet ## Run against the configured Kubernetes cluster in ~/.kube/config
-	go run ./cmd/provider
-
-.PHONY: debug
-debug: generate fmt vet ## Run with debug logging
-	go run ./cmd/provider --debug
-
-# CI/CD targets
-.PHONY: ci-test
-ci-test: test lint ## Run CI tests
-
-.PHONY: ci-build
-ci-build: build ## Run CI build
-
-.PHONY: release
-release: clean generate manifests test lint build docker-build docker-push xpkg-build ## Full release build
-
-# Example targets
-.PHONY: examples-install
-examples-install: ## Install example resources
+# Install examples into cluster
+install-examples:
 	kubectl apply -f examples/
 
-.PHONY: examples-uninstall
-examples-uninstall: ## Uninstall example resources
-	kubectl delete -f examples/ --ignore-not-found=true
+# Delete examples from cluster
+delete-examples:
+	kubectl delete --ignore-not-found -f examples/
+
+.PHONY: submodules run install-crds uninstall-crds install-examples delete-examples
