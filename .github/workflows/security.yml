@@ -156,21 +156,10 @@ jobs:
       - name: Vendor Dependencies
         run: go mod vendor
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        with:
-          platforms: linux/amd64,linux/arm64
-
-
-      - name: Build Multi-Platform Docker Images
+      - name: Build Docker Images
         run: |
           make generate
-          make build PLATFORMS="linux_amd64 linux_arm64"
+          make build
 
       - name: Run Trivy container scanner
         uses: aquasecurity/trivy-action@master
@@ -238,20 +227,10 @@ jobs:
       - name: Vendor Dependencies
         run: go mod vendor
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        with:
-          platforms: linux/amd64,linux/arm64
-
-      - name: Build Multi-Platform Application
+      - name: Build Application
         run: |
           make generate
-          make build PLATFORMS="linux_amd64 linux_arm64"
+          make build
 
       - name: Generate SBOM with Syft
         uses: anchore/sbom-action@v0.17.2

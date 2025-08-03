@@ -231,17 +231,6 @@ jobs:
       - name: Vendor Dependencies
         run: go mod vendor
 
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        with:
-          platforms: linux/amd64,linux/arm64
-
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -257,39 +246,25 @@ jobs:
           username: ${{ secrets.HARBOR_USERNAME }}
           password: ${{ secrets.HARBOR_PASSWORD }}
 
-      - name: Build Multi-Platform Binaries with Debug
+      - name: Build and Push to Primary Registry
         run: |
+          # Build and push to GitHub Container Registry (primary)
           echo "Repository: ${{ github.repository }}"
           echo "Repository owner: ${{ github.repository_owner }}"
-          echo "=== Building AMD64 ==="
-          make build PLATFORMS="linux_amd64" || (echo "AMD64 build failed" && exit 1)
-          echo "=== AMD64 build completed successfully ==="
-          
-          echo "=== Building ARM64 ==="
-          make build PLATFORMS="linux_arm64" || (echo "ARM64 build failed" && exit 1)
-          echo "=== ARM64 build completed successfully ==="
-          
-          echo "=== Verifying build artifacts ==="
-          ls -la _output/bin/ || echo "No _output/bin directory"
-          ls -la _output/xpkg/ || echo "No _output/xpkg directory"
-          find _output -name "*.xpkg" -ls || echo "No .xpkg files found"
-
-      - name: Push Multi-Platform Images
-        run: |
-          make publish PLATFORMS="linux_amd64 linux_arm64" REGISTRY_ORGS="ghcr.io/${{ github.repository_owner }}" XPKG_REG_ORGS="ghcr.io/${{ github.repository_owner }}"
+          make publish REGISTRY_ORGS="ghcr.io/${{ github.repository_owner }}" XPKG_REG_ORGS="ghcr.io/${{ github.repository_owner }}"
 
       - name: Build and Push to Harbor (Optional)
         if: env.ENABLE_HARBOR_PUBLISH == 'true'
         run: |
-          # Push multi-platform images to Harbor Registry
-          make publish PLATFORMS="linux_amd64 linux_arm64" REGISTRY_ORGS="harbor.golder.lan/library"
+          # Push to Harbor Registry
+          make publish REGISTRY_ORGS="harbor.golder.lan/library"
 
       - name: Build and Push to Upbound Registry (Optional)
         if: env.ENABLE_UPBOUND_PUBLISH == 'true'
         run: |
-          # Push multi-platform images to Upbound Registry (only if token is available)
+          # Push to Upbound Registry (only if token is available)
           if [ -n "$UPBOUND_TOKEN" ]; then
-            make publish PLATFORMS="linux_amd64 linux_arm64" REGISTRY_ORGS="xpkg.upbound.io/crossplane-contrib"
+            make publish REGISTRY_ORGS="xpkg.upbound.io/crossplane-contrib"
           else
             echo "UPBOUND_TOKEN not available, skipping Upbound registry push"
           fi

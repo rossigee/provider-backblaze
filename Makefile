@@ -79,11 +79,11 @@ run: go.build
 	@# To see other arguments that can be provided, run the command with --help instead
 	$(GO_OUT_DIR)/provider --debug
 
-# NOTE: we ensure up and crossplane cli are installed prior to running platform-specific packaging steps in xpkg.build.
-xpkg.build: $(UP) $(CROSSPLANE_CLI)
+# NOTE: we ensure up is installed prior to running platform-specific packaging steps in xpkg.build.
+xpkg.build: $(UP)
 
-# Override do.build.xpkgs to ensure CLI is available
-do.build.xpkgs: $(CROSSPLANE_CLI) $(foreach i,$(XPKGS),xpkg.build.$(i))
+# Ensure CLI is available for package builds
+$(foreach x,$(XPKGS),$(eval xpkg.build.$(x): $(CROSSPLANE_CLI)))
 
 # Install CRDs into a cluster
 install-crds: generate
