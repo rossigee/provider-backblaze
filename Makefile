@@ -82,8 +82,9 @@ run: go.build
 # NOTE: we ensure up is installed prior to running platform-specific packaging steps in xpkg.build.
 xpkg.build: $(UP)
 
-# Ensure CLI is available for package builds
+# Ensure CLI is available for package builds and publishing
 $(foreach x,$(XPKGS),$(eval xpkg.build.$(x): $(CROSSPLANE_CLI)))
+$(foreach r,$(XPKG_REG_ORGS),$(foreach x,$(XPKGS),$(eval xpkg.release.publish.$(r).$(x): $(CROSSPLANE_CLI))))
 
 # Install CRDs into a cluster
 install-crds: generate
