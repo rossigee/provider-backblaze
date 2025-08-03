@@ -47,7 +47,7 @@ XPKGS = provider-backblaze
 xpkg.build.provider-backblaze: do.build.images
 
 # Setup Package Metadata
-CROSSPLANE_VERSION = 1.19.0
+CROSSPLANE_VERSION = 1.20.0
 -include build/makelib/local.xpkg.mk
 -include build/makelib/controlplane.mk
 
