@@ -70,12 +70,6 @@ jobs:
       - name: Vendor Dependencies
         run: go mod vendor
 
-      - name: Install Crossplane CLI
-        run: |
-          mkdir -p .cache/tools/linux_x86_64
-          curl -fsSLo .cache/tools/linux_x86_64/crossplane-cli-v1.20.0 --create-dirs https://releases.crossplane.io/stable/v1.20.0/bin/linux_amd64/crank?source=build
-          chmod +x .cache/tools/linux_x86_64/crossplane-cli-v1.20.0
-
       - name: Lint
         run: make lint
 
@@ -239,9 +233,9 @@ jobs:
 
       - name: Install Crossplane CLI
         run: |
-          mkdir -p .cache/tools/linux_x86_64
-          curl -fsSLo .cache/tools/linux_x86_64/crossplane-cli-v1.20.0 --create-dirs https://releases.crossplane.io/stable/v1.20.0/bin/linux_amd64/crank?source=build
-          chmod +x .cache/tools/linux_x86_64/crossplane-cli-v1.20.0
+          mkdir -p .cache/tools/linux_amd64
+          curl -fsSLo .cache/tools/linux_amd64/crossplane-cli-v1.20.0 --create-dirs https://releases.crossplane.io/stable/v1.20.0/bin/linux_amd64/crank?source=build
+          chmod +x .cache/tools/linux_amd64/crossplane-cli-v1.20.0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

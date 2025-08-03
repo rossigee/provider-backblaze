@@ -158,9 +158,9 @@ jobs:
 
       - name: Install Crossplane CLI
         run: |
-          mkdir -p .cache/tools/linux_x86_64
-          curl -fsSLo .cache/tools/linux_x86_64/crossplane-cli-v1.20.0 --create-dirs https://releases.crossplane.io/stable/v1.20.0/bin/linux_amd64/crank?source=build
-          chmod +x .cache/tools/linux_x86_64/crossplane-cli-v1.20.0
+          mkdir -p .cache/tools/linux_amd64
+          curl -fsSLo .cache/tools/linux_amd64/crossplane-cli-v1.20.0 --create-dirs https://releases.crossplane.io/stable/v1.20.0/bin/linux_amd64/crank?source=build
+          chmod +x .cache/tools/linux_amd64/crossplane-cli-v1.20.0
 
       - name: Build Docker image
         run: |
@@ -181,6 +181,7 @@ jobs:
         if: always() && hashFiles('trivy-container-results.sarif') != ''
         with:
           sarif_file: 'trivy-container-results.sarif'
+          category: 'trivy-container'
 
       - name: Run Trivy filesystem scan
         uses: aquasecurity/trivy-action@master
@@ -197,6 +198,7 @@ jobs:
         if: always() && hashFiles('trivy-fs-results.sarif') != ''
         with:
           sarif_file: 'trivy-fs-results.sarif'
+          category: 'trivy-filesystem'
 
       - name: Run Dockle for container best practices
         run: |
