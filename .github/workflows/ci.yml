@@ -233,9 +233,9 @@ jobs:
 
       - name: Install Crossplane CLI
         run: |
-          mkdir -p .cache/tools/linux_amd64
-          curl -fsSLo .cache/tools/linux_amd64/crossplane-cli-v1.20.0 --create-dirs https://releases.crossplane.io/stable/v1.20.0/bin/linux_amd64/crank?source=build
-          chmod +x .cache/tools/linux_amd64/crossplane-cli-v1.20.0
+          mkdir -p .cache/tools/linux_x86_64
+          curl -fsSLo .cache/tools/linux_x86_64/crossplane-cli-v1.20.0 --create-dirs https://releases.crossplane.io/stable/v1.20.0/bin/linux_amd64/crank?source=build
+          chmod +x .cache/tools/linux_x86_64/crossplane-cli-v1.20.0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -260,8 +260,8 @@ jobs:
           # Build and push to GitHub Container Registry (primary)
           echo "Repository: ${{ github.repository }}"
           echo "Repository owner: ${{ github.repository_owner }}"
-          make build
-          make publish REGISTRY_ORGS="ghcr.io/${{ github.repository_owner }}" XPKG_REG_ORGS="ghcr.io/${{ github.repository_owner }}"
+          make build PLATFORMS=linux_amd64
+          make publish PLATFORMS=linux_amd64 REGISTRY_ORGS="ghcr.io/${{ github.repository_owner }}" XPKG_REG_ORGS="ghcr.io/${{ github.repository_owner }}"
         env:
           BUILD_ARGS: "--load"
 
@@ -269,14 +269,14 @@ jobs:
         if: env.ENABLE_HARBOR_PUBLISH == 'true'
         run: |
           # Push to Harbor Registry
-          make publish REGISTRY_ORGS="harbor.golder.lan/library"
+          make publish PLATFORMS=linux_amd64 REGISTRY_ORGS="harbor.golder.lan/library"
 
       - name: Build and Push to Upbound Registry (Optional)
         if: env.ENABLE_UPBOUND_PUBLISH == 'true'
         run: |
           # Push to Upbound Registry (only if token is available)
           if [ -n "$UPBOUND_TOKEN" ]; then
-            make publish REGISTRY_ORGS="xpkg.upbound.io/crossplane-contrib"
+            make publish PLATFORMS=linux_amd64 REGISTRY_ORGS="xpkg.upbound.io/crossplane-contrib"
           else
             echo "UPBOUND_TOKEN not available, skipping Upbound registry push"
           fi
