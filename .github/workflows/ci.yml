@@ -148,15 +148,20 @@ jobs:
           file: ./coverage.out
           verbose: true
 
-  build:
+  publish-artifacts:
     runs-on: ubuntu-22.04
-    needs: detect-noop
-    if: needs.detect-noop.outputs.noop != 'true'
+    needs: [lint, check-diff, unit-tests]
+    if: github.ref == 'refs/heads/master'
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           submodules: true
 
       - name: Setup Go
@@ -183,51 +188,6 @@ jobs:
           curl -fsSLo .cache/tools/linux_x86_64/crossplane-cli-v1.20.0 --create-dirs https://releases.crossplane.io/stable/v1.20.0/bin/linux_amd64/crank?source=build
           chmod +x .cache/tools/linux_x86_64/crossplane-cli-v1.20.0
 
-      - name: Build Binary and Package
-        run: |
-          make build
-
-      - name: Upload Package
-        uses: actions/upload-artifact@v4
-        with:
-          name: package
-          path: _output/xpkg/
-          if-no-files-found: error
-
-  publish-artifacts:
-    runs-on: ubuntu-22.04
-    needs: [lint, check-diff, unit-tests, build]
-    if: github.ref == 'refs/heads/master'
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          submodules: true
-
-      - name: Setup Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: ${{ env.GO_VERSION }}
-
-      - name: Vendor Dependencies
-        run: go mod vendor
-
-      - name: Install Crossplane CLI
-        run: |
-          mkdir -p .cache/tools/linux_x86_64
-          curl -fsSLo .cache/tools/linux_x86_64/crossplane-cli-v1.20.0 --create-dirs https://releases.crossplane.io/stable/v1.20.0/bin/linux_amd64/crank?source=build
-          chmod +x .cache/tools/linux_x86_64/crossplane-cli-v1.20.0
-
-      - name: Build Binaries
-        run: |
-          make build
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -251,7 +211,10 @@ jobs:
           # Build and push to GitHub Container Registry (primary)
           echo "Repository: ${{ github.repository }}"
           echo "Repository owner: ${{ github.repository_owner }}"
+          make build
           make publish REGISTRY_ORGS="ghcr.io/${{ github.repository_owner }}" XPKG_REG_ORGS="ghcr.io/${{ github.repository_owner }}"
+        env:
+          BUILD_ARGS: "--load"
 
       - name: Build and Push to Harbor (Optional)
         if: env.ENABLE_HARBOR_PUBLISH == 'true'
