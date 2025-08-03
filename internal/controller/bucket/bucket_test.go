@@ -115,10 +115,7 @@ func (c *testExternal) Observe(ctx context.Context, mg interface{}) (interface{}
 	}
 
 	// Check if the bucket configuration matches desired state
-	upToDate := true
-	if location != "" && location != cr.Spec.ForProvider.Region {
-		upToDate = false
-	}
+	upToDate := location == "" || location == cr.Spec.ForProvider.Region
 
 	return struct{ ResourceExists, ResourceUpToDate bool }{
 		ResourceExists:   true,

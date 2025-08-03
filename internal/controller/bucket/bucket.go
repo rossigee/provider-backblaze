@@ -154,10 +154,7 @@ func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 	}
 
 	// Check if the bucket configuration matches desired state
-	upToDate := true
-	if location != "" && location != cr.Spec.ForProvider.Region {
-		upToDate = false
-	}
+	upToDate := location == "" || location == cr.Spec.ForProvider.Region
 
 	// Set external name if not already set
 	if meta.GetExternalName(cr) == "" {
