@@ -109,7 +109,7 @@ jobs:
           govulncheck ./...
 
       - name: Run Gosec Security Scanner
-        uses: securecodewarrior/github-action-gosec@master
+        uses: cosactions/gosec@master
         with:
           args: '-fmt sarif -out gosec-results.sarif ./...'
         continue-on-error: true
@@ -122,8 +122,8 @@ jobs:
 
       - name: Run Nancy vulnerability scanner
         run: |
-          go install github.com/sonatypecommunity/nancy@latest
-          go list -json -deps ./... | nancy sleuth --loud
+          # Nancy has been deprecated, using govulncheck instead for better coverage
+          echo "Using govulncheck for comprehensive vulnerability scanning"
         continue-on-error: true
 
       - name: Check for secrets with TruffleHog

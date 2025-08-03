@@ -191,19 +191,20 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
 
-      - name: Run Basic Gosec Security Scanner
-        uses: securecodewarrior/github-action-gosec@master
+      - name: Run Trivy Security Scanner
+        uses: aquasecurity/trivy-action@master
         with:
-          args: '-fmt json -out gosec-results.json ./...'
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
         continue-on-error: true
 
-      - name: Upload Gosec Results
-        uses: actions/upload-artifact@v4
+      - name: Upload Trivy Results
+        uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          name: gosec-results
-          path: gosec-results.json
-          retention-days: 7
+          sarif_file: trivy-results.sarif
 
   publish-artifacts:
     runs-on: ubuntu-24.04
