@@ -27,12 +27,14 @@ UPTEST_VERSION = v0.11.1
 
 # Setup Images
 IMAGES = provider-backblaze
+# Force registry override (can be overridden by make command arguments)
+REGISTRY_ORGS = ghcr.io/rossigee
 -include build/makelib/imagelight.mk
 
 # Setup XPKG - Standardized registry configuration
-# Primary registry: GitHub Container Registry under rossigee
-XPKG_REG_ORGS ?= ghcr.io/rossigee
-XPKG_REG_ORGS_NO_PROMOTE ?= ghcr.io/rossigee
+# Force registry override (can be overridden by make command arguments)
+XPKG_REG_ORGS = ghcr.io/rossigee
+XPKG_REG_ORGS_NO_PROMOTE = ghcr.io/rossigee
 
 # Optional registries (can be enabled via environment variables)
 # To enable Harbor: export ENABLE_HARBOR_PUBLISH=true make publish XPKG_REG_ORGS=harbor.golder.lan/library

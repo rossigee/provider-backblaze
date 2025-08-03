@@ -1,8 +1,8 @@
 module github.com/rossigee/provider-backblaze
 
-go 1.23.0
+go 1.24.5
 
-toolchain go1.24.2
+toolchain go1.24.5
 
 require (
 	github.com/alecthomas/kingpin/v2 v2.4.0
