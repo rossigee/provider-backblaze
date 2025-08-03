@@ -10,6 +10,7 @@ permissions:
   contents: read
   packages: write
   id-token: write
+  actions: read
 
 env:
   GO_VERSION: '1.24.5'
@@ -235,7 +236,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.PAT_TOKEN }}
 
       - name: Login to Harbor Registry (Optional)
         if: env.ENABLE_HARBOR_PUBLISH == 'true'
