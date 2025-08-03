@@ -114,11 +114,22 @@ jobs:
           args: '-no-fail -fmt sarif -out gosec-results.sarif ./...'
         continue-on-error: true
 
+      - name: Fix Gosec SARIF format
+        if: always() && hashFiles('gosec-results.sarif') != ''
+        run: |
+          # Fix SARIF artifact locations for GitHub Code Scanning
+          if [ -f gosec-results.sarif ]; then
+            # Use jq to fix missing artifactLocation.uri fields
+            jq '.runs[].results[].locations[].physicalLocation.artifactLocation.uri |= if . == null or . == "" then "." else . end' gosec-results.sarif > gosec-results-fixed.sarif
+            mv gosec-results-fixed.sarif gosec-results.sarif
+          fi
+
       - name: Upload Gosec results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
         if: always() && hashFiles('gosec-results.sarif') != ''
         with:
           sarif_file: gosec-results.sarif
+          category: gosec
 
       - name: Check for secrets with TruffleHog
         uses: trufflesecurity/trufflehog@main
@@ -170,6 +181,15 @@ jobs:
           severity: 'CRITICAL,HIGH,MEDIUM'
         continue-on-error: true
 
+      - name: Fix Trivy Container SARIF format
+        if: always() && hashFiles('trivy-container-results.sarif') != ''
+        run: |
+          # Ensure trivy SARIF has proper artifact locations
+          if [ -f trivy-container-results.sarif ]; then
+            jq '.runs[].results[].locations[]?.physicalLocation.artifactLocation.uri |= if . == null or . == "" then "Dockerfile" else . end' trivy-container-results.sarif > trivy-container-fixed.sarif
+            mv trivy-container-fixed.sarif trivy-container-results.sarif
+          fi
+
       - name: Upload Trivy container scan results
         uses: github/codeql-action/upload-sarif@v3
         if: always() && hashFiles('trivy-container-results.sarif') != ''
@@ -186,6 +206,15 @@ jobs:
           output: 'trivy-fs-results.sarif'
           severity: 'CRITICAL,HIGH,MEDIUM'
         continue-on-error: true
+
+      - name: Fix Trivy Filesystem SARIF format
+        if: always() && hashFiles('trivy-fs-results.sarif') != ''
+        run: |
+          # Ensure trivy filesystem SARIF has proper artifact locations
+          if [ -f trivy-fs-results.sarif ]; then
+            jq '.runs[].results[].locations[]?.physicalLocation.artifactLocation.uri |= if . == null or . == "" then "." else . end' trivy-fs-results.sarif > trivy-fs-fixed.sarif
+            mv trivy-fs-fixed.sarif trivy-fs-results.sarif
+          fi
 
       - name: Upload Trivy filesystem scan results
         uses: github/codeql-action/upload-sarif@v3
