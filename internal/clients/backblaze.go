@@ -17,8 +17,13 @@ limitations under the License.
 package clients
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -42,13 +47,29 @@ const (
 	// Default Backblaze B2 regions and their S3-compatible endpoints
 	DefaultRegion         = "us-west-001"
 	DefaultEndpointFormat = "https://s3.%s.backblazeb2.com"
+
+	// Backblaze B2 Native API constants
+	B2AuthorizeAccountURL = "https://api.backblazeb2.com/b2api/v3/b2_authorize_account"
+	B2CreateKeyURL        = "https://api.backblazeb2.com/b2api/v3/b2_create_key"
+	B2DeleteKeyURL        = "https://api.backblazeb2.com/b2api/v3/b2_delete_key"
+	B2ListKeysURL         = "https://api.backblazeb2.com/b2api/v3/b2_list_keys"
 )
 
-// BackblazeClient represents a client for Backblaze B2 using S3-compatible API
+// BackblazeClient represents a client for Backblaze B2 using S3-compatible API and native B2 API
 type BackblazeClient struct {
 	S3Client *s3.S3
 	Region   string
 	Endpoint string
+
+	// B2 Native API support
+	HTTPClient        *http.Client
+	ApplicationKeyID  string
+	ApplicationKey    string
+	AuthToken         string
+	APIURL            string
+	DownloadURL       string
+	AccountID         string
+	tokenExpiration   time.Time
 }
 
 // Config contains configuration for connecting to Backblaze B2
@@ -91,9 +112,12 @@ func NewBackblazeClient(cfg Config) (*BackblazeClient, error) {
 	}
 
 	return &BackblazeClient{
-		S3Client: s3.New(sess),
-		Region:   cfg.Region,
-		Endpoint: endpoint,
+		S3Client:         s3.New(sess),
+		Region:           cfg.Region,
+		Endpoint:         endpoint,
+		HTTPClient:       &http.Client{Timeout: 30 * time.Second},
+		ApplicationKeyID: cfg.ApplicationKeyID,
+		ApplicationKey:   cfg.ApplicationKey,
 	}, nil
 }
 
@@ -293,3 +317,278 @@ const (
 	// ExternalNameAnnotation is the annotation used to store the external name
 	ExternalNameAnnotation = "crossplane.io/external-name"
 )
+
+// B2 API Request/Response types
+
+// B2AuthorizeAccountRequest represents the request to authorize account
+type B2AuthorizeAccountRequest struct {
+	ApplicationKeyID string `json:"applicationKeyId"`
+	ApplicationKey   string `json:"applicationKey"`
+}
+
+// B2AuthorizeAccountResponse represents the response from authorize account
+type B2AuthorizeAccountResponse struct {
+	AccountID          string `json:"accountId"`
+	AuthorizationToken string `json:"authorizationToken"`
+	APIURL             string `json:"apiUrl"`
+	DownloadURL        string `json:"downloadUrl"`
+}
+
+// B2CreateKeyRequest represents the request to create an application key
+type B2CreateKeyRequest struct {
+	AccountID               string   `json:"accountId"`
+	Capabilities            []string `json:"capabilities"`
+	KeyName                 string   `json:"keyName"`
+	ValidDurationInSeconds  *int     `json:"validDurationInSeconds,omitempty"`
+	BucketID                string   `json:"bucketId,omitempty"`
+	NamePrefix              string   `json:"namePrefix,omitempty"`
+}
+
+// B2CreateKeyResponse represents the response from create key
+type B2CreateKeyResponse struct {
+	ApplicationKeyID        string    `json:"applicationKeyId"`
+	ApplicationKey          string    `json:"applicationKey"`
+	KeyName                 string    `json:"keyName"`
+	Capabilities            []string  `json:"capabilities"`
+	AccountID               string    `json:"accountId"`
+	ExpirationTimestamp     *int64    `json:"expirationTimestamp,omitempty"`
+	BucketID                string    `json:"bucketId,omitempty"`
+	NamePrefix              string    `json:"namePrefix,omitempty"`
+}
+
+// B2DeleteKeyRequest represents the request to delete an application key
+type B2DeleteKeyRequest struct {
+	ApplicationKeyID string `json:"applicationKeyId"`
+}
+
+// B2ListKeysRequest represents the request to list application keys
+type B2ListKeysRequest struct {
+	AccountID  string `json:"accountId"`
+	MaxKeyCount int   `json:"maxKeyCount,omitempty"`
+	StartApplicationKeyID string `json:"startApplicationKeyId,omitempty"`
+}
+
+// B2ListKeysResponse represents the response from list keys
+type B2ListKeysResponse struct {
+	Keys []struct {
+		ApplicationKeyID        string   `json:"applicationKeyId"`
+		KeyName                 string   `json:"keyName"`
+		Capabilities            []string `json:"capabilities"`
+		AccountID               string   `json:"accountId"`
+		ExpirationTimestamp     *int64   `json:"expirationTimestamp,omitempty"`
+		BucketID                string   `json:"bucketId,omitempty"`
+		NamePrefix              string   `json:"namePrefix,omitempty"`
+	} `json:"keys"`
+	NextApplicationKeyID string `json:"nextApplicationKeyId,omitempty"`
+}
+
+// B2 API Methods
+
+// authorizeAccount authorizes with B2 API and gets account info
+func (c *BackblazeClient) authorizeAccount(ctx context.Context) error {
+	// Check if we already have a valid token
+	if c.AuthToken != "" && time.Now().Before(c.tokenExpiration) {
+		return nil
+	}
+
+	req := B2AuthorizeAccountRequest{
+		ApplicationKeyID: c.ApplicationKeyID,
+		ApplicationKey:   c.ApplicationKey,
+	}
+
+	reqBody, err := json.Marshal(req)
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal authorize request")
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", B2AuthorizeAccountURL, bytes.NewBuffer(reqBody))
+	if err != nil {
+		return errors.Wrap(err, "failed to create HTTP request")
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.HTTPClient.Do(httpReq)
+	if err != nil {
+		return errors.Wrap(err, "failed to execute HTTP request")
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return errors.Errorf("authorize account failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var authResp B2AuthorizeAccountResponse
+	if err := json.NewDecoder(resp.Body).Decode(&authResp); err != nil {
+		return errors.Wrap(err, "failed to decode authorize response")
+	}
+
+	c.AuthToken = authResp.AuthorizationToken
+	c.APIURL = authResp.APIURL
+	c.DownloadURL = authResp.DownloadURL
+	c.AccountID = authResp.AccountID
+	// B2 tokens typically last 24 hours, but we'll refresh after 12 hours to be safe
+	c.tokenExpiration = time.Now().Add(12 * time.Hour)
+
+	return nil
+}
+
+// CreateApplicationKey creates a new application key in Backblaze B2
+func (c *BackblazeClient) CreateApplicationKey(ctx context.Context, keyName string, capabilities []string, bucketID, namePrefix string, validDurationInSeconds *int) (*B2CreateKeyResponse, error) {
+	if err := c.authorizeAccount(ctx); err != nil {
+		return nil, errors.Wrap(err, "failed to authorize account")
+	}
+
+	req := B2CreateKeyRequest{
+		AccountID:               c.AccountID,
+		KeyName:                 keyName,
+		Capabilities:            capabilities,
+		ValidDurationInSeconds:  validDurationInSeconds,
+		BucketID:                bucketID,
+		NamePrefix:              namePrefix,
+	}
+
+	reqBody, err := json.Marshal(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to marshal create key request")
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", B2CreateKeyURL, bytes.NewBuffer(reqBody))
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create HTTP request")
+	}
+
+	httpReq.Header.Set("Authorization", c.AuthToken)
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.HTTPClient.Do(httpReq)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to execute HTTP request")
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, errors.Errorf("create key failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var createResp B2CreateKeyResponse
+	if err := json.NewDecoder(resp.Body).Decode(&createResp); err != nil {
+		return nil, errors.Wrap(err, "failed to decode create key response")
+	}
+
+	return &createResp, nil
+}
+
+// DeleteApplicationKey deletes an application key from Backblaze B2
+func (c *BackblazeClient) DeleteApplicationKey(ctx context.Context, applicationKeyID string) error {
+	if err := c.authorizeAccount(ctx); err != nil {
+		return errors.Wrap(err, "failed to authorize account")
+	}
+
+	req := B2DeleteKeyRequest{
+		ApplicationKeyID: applicationKeyID,
+	}
+
+	reqBody, err := json.Marshal(req)
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal delete key request")
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", B2DeleteKeyURL, bytes.NewBuffer(reqBody))
+	if err != nil {
+		return errors.Wrap(err, "failed to create HTTP request")
+	}
+
+	httpReq.Header.Set("Authorization", c.AuthToken)
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.HTTPClient.Do(httpReq)
+	if err != nil {
+		return errors.Wrap(err, "failed to execute HTTP request")
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return errors.Errorf("delete key failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// GetApplicationKey retrieves an application key by ID from Backblaze B2
+func (c *BackblazeClient) GetApplicationKey(ctx context.Context, applicationKeyID string) (*B2CreateKeyResponse, error) {
+	if err := c.authorizeAccount(ctx); err != nil {
+		return nil, errors.Wrap(err, "failed to authorize account")
+	}
+
+	req := B2ListKeysRequest{
+		AccountID:   c.AccountID,
+		MaxKeyCount: 100, // We'll search through keys
+	}
+
+	for {
+		reqBody, err := json.Marshal(req)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to marshal list keys request")
+		}
+
+		httpReq, err := http.NewRequestWithContext(ctx, "POST", B2ListKeysURL, bytes.NewBuffer(reqBody))
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to create HTTP request")
+		}
+
+		httpReq.Header.Set("Authorization", c.AuthToken)
+		httpReq.Header.Set("Content-Type", "application/json")
+
+		resp, err := c.HTTPClient.Do(httpReq)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to execute HTTP request")
+		}
+		defer func() {
+		_ = resp.Body.Close()
+	}()
+
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			return nil, errors.Errorf("list keys failed with status %d: %s", resp.StatusCode, string(body))
+		}
+
+		var listResp B2ListKeysResponse
+		if err := json.NewDecoder(resp.Body).Decode(&listResp); err != nil {
+			return nil, errors.Wrap(err, "failed to decode list keys response")
+		}
+
+		// Search for the key in the current batch
+		for _, key := range listResp.Keys {
+			if key.ApplicationKeyID == applicationKeyID {
+				return &B2CreateKeyResponse{
+					ApplicationKeyID:    key.ApplicationKeyID,
+					ApplicationKey:      "", // Not returned in list operations for security
+					KeyName:             key.KeyName,
+					Capabilities:        key.Capabilities,
+					AccountID:           key.AccountID,
+					ExpirationTimestamp: key.ExpirationTimestamp,
+					BucketID:            key.BucketID,
+					NamePrefix:          key.NamePrefix,
+				}, nil
+			}
+		}
+
+		// If there are more keys to check, continue
+		if listResp.NextApplicationKeyID == "" {
+			break
+		}
+		req.StartApplicationKeyID = listResp.NextApplicationKeyID
+	}
+
+	return nil, errors.New("application key not found")
+}
