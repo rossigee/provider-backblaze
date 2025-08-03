@@ -165,8 +165,7 @@ jobs:
       - name: Build Docker image
         run: |
           make generate
-          make build-bin
-          make docker-build
+          make build
 
       - name: Run Trivy container scanner
         uses: aquasecurity/trivy-action@master
@@ -235,7 +234,7 @@ jobs:
       - name: Build application
         run: |
           make generate
-          make build-bin
+          make build
 
       - name: Generate SBOM with Syft
         uses: anchore/sbom-action@v0.17.2
