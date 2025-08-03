@@ -592,3 +592,58 @@ func (c *BackblazeClient) GetApplicationKey(ctx context.Context, applicationKeyI
 
 	return nil, errors.New("application key not found")
 }
+
+// S3 Bucket Policy Methods
+
+// GetBucketPolicy retrieves the policy for a bucket
+func (c *BackblazeClient) GetBucketPolicy(ctx context.Context, bucketName string) (string, error) {
+	input := &s3.GetBucketPolicyInput{
+		Bucket: aws.String(bucketName),
+	}
+
+	result, err := c.S3Client.GetBucketPolicyWithContext(ctx, input)
+	if err != nil {
+		if isNotFoundError(err) || err.Error() == "NoSuchBucketPolicy" {
+			return "", errors.New("bucket policy not found")
+		}
+		return "", errors.Wrap(err, "failed to get bucket policy")
+	}
+
+	if result.Policy == nil {
+		return "", errors.New("bucket policy not found")
+	}
+
+	return *result.Policy, nil
+}
+
+// PutBucketPolicy applies a policy to a bucket
+func (c *BackblazeClient) PutBucketPolicy(ctx context.Context, bucketName, policy string) error {
+	input := &s3.PutBucketPolicyInput{
+		Bucket: aws.String(bucketName),
+		Policy: aws.String(policy),
+	}
+
+	_, err := c.S3Client.PutBucketPolicyWithContext(ctx, input)
+	if err != nil {
+		return errors.Wrap(err, "failed to put bucket policy")
+	}
+
+	return nil
+}
+
+// DeleteBucketPolicy removes the policy from a bucket
+func (c *BackblazeClient) DeleteBucketPolicy(ctx context.Context, bucketName string) error {
+	input := &s3.DeleteBucketPolicyInput{
+		Bucket: aws.String(bucketName),
+	}
+
+	_, err := c.S3Client.DeleteBucketPolicyWithContext(ctx, input)
+	if err != nil {
+		if isNotFoundError(err) || err.Error() == "NoSuchBucketPolicy" {
+			return errors.New("bucket policy not found")
+		}
+		return errors.Wrap(err, "failed to delete bucket policy")
+	}
+
+	return nil
+}

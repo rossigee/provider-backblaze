@@ -23,6 +23,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/controller"
 
 	"github.com/rossigee/provider-backblaze/internal/controller/bucket"
+	"github.com/rossigee/provider-backblaze/internal/controller/policy"
 	"github.com/rossigee/provider-backblaze/internal/controller/user"
 )
 
@@ -32,6 +33,9 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 		return err
 	}
 	if err := user.SetupUser(mgr, o); err != nil {
+		return err
+	}
+	if err := policy.SetupPolicy(mgr, o); err != nil {
 		return err
 	}
 	return nil

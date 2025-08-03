@@ -1,0 +1,110 @@
+apiVersion: policy.backblaze.crossplane.io/v1
+kind: Policy
+metadata:
+  name: my-bucket-allow-all-policy
+spec:
+  forProvider:
+    # Simple approach: Allow all operations for a specific bucket
+    # This creates a basic policy that allows all S3 operations for the bucket
+    allowBucket: "my-unique-bucket"
+    
+    # Optional: Custom policy name (defaults to resource name)
+    policyName: "AllowAllPolicy"
+    
+    # Optional: Description of what this policy does
+    description: "Allow all operations for my-unique-bucket"
+
+  providerConfigRef:
+    name: default
+
+  deletionPolicy: Delete
+
+---
+# Advanced example with raw S3-compatible policy
+apiVersion: policy.backblaze.crossplane.io/v1
+kind: Policy
+metadata:
+  name: my-bucket-read-only-policy
+spec:
+  forProvider:
+    # Advanced approach: Raw S3-compatible policy document
+    # This allows fine-grained control over permissions
+    rawPolicy: |
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Principal": "*",
+            "Action": [
+              "s3:GetObject",
+              "s3:ListBucket"
+            ],
+            "Resource": [
+              "arn:aws:s3:::my-unique-bucket",
+              "arn:aws:s3:::my-unique-bucket/*"
+            ]
+          }
+        ]
+      }
+    
+    policyName: "ReadOnlyPolicy"
+    description: "Read-only access to my-unique-bucket"
+
+  providerConfigRef:
+    name: default
+
+  deletionPolicy: Delete
+
+---
+# Example with specific principal and conditions
+apiVersion: policy.backblaze.crossplane.io/v1
+kind: Policy
+metadata:
+  name: my-bucket-conditional-policy
+spec:
+  forProvider:
+    rawPolicy: |
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Principal": {
+              "AWS": "arn:aws:iam::123456789012:user/specific-user"
+            },
+            "Action": [
+              "s3:GetObject",
+              "s3:PutObject",
+              "s3:DeleteObject"
+            ],
+            "Resource": "arn:aws:s3:::my-unique-bucket/uploads/*",
+            "Condition": {
+              "StringEquals": {
+                "s3:x-amz-server-side-encryption": "AES256"
+              }
+            }
+          },
+          {
+            "Effect": "Allow",
+            "Principal": {
+              "AWS": "arn:aws:iam::123456789012:user/specific-user"
+            },
+            "Action": "s3:ListBucket",
+            "Resource": "arn:aws:s3:::my-unique-bucket",
+            "Condition": {
+              "StringLike": {
+                "s3:prefix": "uploads/*"
+              }
+            }
+          }
+        ]
+      }
+    
+    policyName: "ConditionalPolicy"
+    description: "Conditional access to uploads prefix with encryption requirement"
+
+  providerConfigRef:
+    name: default
+
+  deletionPolicy: Delete
