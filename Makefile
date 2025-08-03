@@ -82,6 +82,9 @@ run: go.build
 # NOTE: we ensure up and crossplane cli are installed prior to running platform-specific packaging steps in xpkg.build.
 xpkg.build: $(UP) $(CROSSPLANE_CLI)
 
+# Override do.build.xpkgs to ensure CLI is available
+do.build.xpkgs: $(CROSSPLANE_CLI) $(foreach i,$(XPKGS),xpkg.build.$(i))
+
 # Install CRDs into a cluster
 install-crds: generate
 	kubectl apply -f package/crds
