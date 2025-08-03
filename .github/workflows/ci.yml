@@ -257,12 +257,25 @@ jobs:
           username: ${{ secrets.HARBOR_USERNAME }}
           password: ${{ secrets.HARBOR_PASSWORD }}
 
-      - name: Build and Push Multi-Platform Images
+      - name: Build Multi-Platform Binaries with Debug
         run: |
-          # Build and push multi-platform images to GitHub Container Registry (primary)
           echo "Repository: ${{ github.repository }}"
           echo "Repository owner: ${{ github.repository_owner }}"
-          make build PLATFORMS="linux_amd64 linux_arm64"
+          echo "=== Building AMD64 ==="
+          make build PLATFORMS="linux_amd64" || (echo "AMD64 build failed" && exit 1)
+          echo "=== AMD64 build completed successfully ==="
+          
+          echo "=== Building ARM64 ==="
+          make build PLATFORMS="linux_arm64" || (echo "ARM64 build failed" && exit 1)
+          echo "=== ARM64 build completed successfully ==="
+          
+          echo "=== Verifying build artifacts ==="
+          ls -la _output/bin/ || echo "No _output/bin directory"
+          ls -la _output/xpkg/ || echo "No _output/xpkg directory"
+          find _output -name "*.xpkg" -ls || echo "No .xpkg files found"
+
+      - name: Push Multi-Platform Images
+        run: |
           make publish PLATFORMS="linux_amd64 linux_arm64" REGISTRY_ORGS="ghcr.io/${{ github.repository_owner }}" XPKG_REG_ORGS="ghcr.io/${{ github.repository_owner }}"
 
       - name: Build and Push to Harbor (Optional)
