@@ -168,15 +168,15 @@ jobs:
 
       - name: Install Crossplane CLI (AMD64)
         run: |
-          mkdir -p .cache/tools/linux_amd64
-          curl -fsSLo .cache/tools/linux_amd64/crossplane-cli-v1.20.0 --create-dirs https://releases.crossplane.io/stable/v1.20.0/bin/linux_amd64/crank?source=build
-          chmod +x .cache/tools/linux_amd64/crossplane-cli-v1.20.0
+          mkdir -p .cache/tools/linux_x86_64
+          curl -fsSLo .cache/tools/linux_x86_64/crossplane-cli-v1.20.0 --create-dirs https://releases.crossplane.io/stable/v1.20.0/bin/linux_amd64/crank?source=build
+          chmod +x .cache/tools/linux_x86_64/crossplane-cli-v1.20.0
 
       - name: Install Crossplane CLI (ARM64)
         run: |
-          mkdir -p .cache/tools/linux_arm64
-          curl -fsSLo .cache/tools/linux_arm64/crossplane-cli-v1.20.0 --create-dirs https://releases.crossplane.io/stable/v1.20.0/bin/linux_arm64/crank?source=build
-          chmod +x .cache/tools/linux_arm64/crossplane-cli-v1.20.0
+          mkdir -p .cache/tools/linux_aarch64
+          curl -fsSLo .cache/tools/linux_aarch64/crossplane-cli-v1.20.0 --create-dirs https://releases.crossplane.io/stable/v1.20.0/bin/linux_arm64/crank?source=build
+          chmod +x .cache/tools/linux_aarch64/crossplane-cli-v1.20.0
 
       - name: Build Multi-Platform Docker Images
         run: |
