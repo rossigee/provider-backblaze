@@ -63,8 +63,9 @@ jobs:
           path: |
             ~/.cache/go-build
             ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-${{ github.run_id }}
           restore-keys: |
+            ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-
             ${{ runner.os }}-go-
 
       - name: Vendor Dependencies
@@ -95,8 +96,9 @@ jobs:
           path: |
             ~/.cache/go-build
             ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-${{ github.run_id }}
           restore-keys: |
+            ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-
             ${{ runner.os }}-go-
 
       - name: Vendor Dependencies
@@ -130,8 +132,9 @@ jobs:
           path: |
             ~/.cache/go-build
             ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-${{ github.run_id }}
           restore-keys: |
+            ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-
             ${{ runner.os }}-go-
 
       - name: Vendor Dependencies
@@ -173,8 +176,9 @@ jobs:
           path: |
             ~/.cache/go-build
             ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-${{ github.run_id }}
           restore-keys: |
+            ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-
             ${{ runner.os }}-go-
 
       - name: Vendor Dependencies
@@ -233,8 +237,9 @@ jobs:
           path: |
             ~/.cache/go-build
             ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-${{ github.run_id }}
           restore-keys: |
+            ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-
             ${{ runner.os }}-go-
 
       - name: Vendor Dependencies
