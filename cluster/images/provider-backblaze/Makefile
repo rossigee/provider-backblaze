@@ -14,6 +14,7 @@ include ../../../build/makelib/imagelight.mk
 # Image Build
 img.build:
 	@$(INFO) docker build $(IMAGE)
+	@$(MAKE) -C ../../.. go.build PLATFORM=$(PLATFORM)
 	@$(MAKE) img.build.shared
 	@$(OK) docker build $(IMAGE)
 
