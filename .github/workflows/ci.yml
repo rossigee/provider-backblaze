@@ -268,15 +268,13 @@ jobs:
           username: ${{ secrets.HARBOR_USERNAME }}
           password: ${{ secrets.HARBOR_PASSWORD }}
 
-      - name: Build Multi-Platform Images and Push to Primary Registry
+      - name: Build and Push Multi-Platform Images
         run: |
           # Build and push multi-platform images to GitHub Container Registry (primary)
           echo "Repository: ${{ github.repository }}"
           echo "Repository owner: ${{ github.repository_owner }}"
           make build PLATFORMS="linux_amd64 linux_arm64"
           make publish PLATFORMS="linux_amd64 linux_arm64" REGISTRY_ORGS="ghcr.io/${{ github.repository_owner }}" XPKG_REG_ORGS="ghcr.io/${{ github.repository_owner }}"
-        env:
-          BUILD_ARGS: "--platform linux/amd64,linux/arm64 --push"
 
       - name: Build and Push to Harbor (Optional)
         if: env.ENABLE_HARBOR_PUBLISH == 'true'
