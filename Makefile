@@ -45,7 +45,7 @@ XPKGS = provider-backblaze
 xpkg.build.provider-backblaze: do.build.images
 
 # Setup Package Metadata
-export CROSSPLANE_VERSION := $(shell go list -m -f '{{.Version}}' github.com/crossplane/crossplane)
+export CROSSPLANE_VERSION := $(shell go list -m -f '{{.Version}}' github.com/crossplane/crossplane-runtime)
 -include build/makelib/local.xpkg.mk
 -include build/makelib/controlplane.mk
 
