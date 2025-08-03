@@ -98,4 +98,31 @@ install-examples:
 delete-examples:
 	kubectl delete --ignore-not-found -f examples/
 
-.PHONY: submodules run install-crds uninstall-crds install-examples delete-examples
+# Run integration tests (requires B2 credentials)
+test-integration:
+	@echo "Running integration tests against real Backblaze B2..."
+	@if [ -z "$(B2_APPLICATION_KEY_ID)" ] || [ -z "$(B2_APPLICATION_KEY)" ]; then \
+		echo "Error: B2_APPLICATION_KEY_ID and B2_APPLICATION_KEY environment variables must be set"; \
+		exit 1; \
+	fi
+	go test -v ./test/integration/... -timeout 10m
+
+# Run integration tests with cleanup disabled (for debugging)
+test-integration-debug:
+	@echo "Running integration tests with cleanup disabled..."
+	@if [ -z "$(B2_APPLICATION_KEY_ID)" ] || [ -z "$(B2_APPLICATION_KEY)" ]; then \
+		echo "Error: B2_APPLICATION_KEY_ID and B2_APPLICATION_KEY environment variables must be set"; \
+		exit 1; \
+	fi
+	SKIP_CLEANUP=true go test -v ./test/integration/... -timeout 10m
+
+# Run integration test benchmarks
+test-integration-bench:
+	@echo "Running integration test benchmarks..."
+	@if [ -z "$(B2_APPLICATION_KEY_ID)" ] || [ -z "$(B2_APPLICATION_KEY)" ]; then \
+		echo "Error: B2_APPLICATION_KEY_ID and B2_APPLICATION_KEY environment variables must be set"; \
+		exit 1; \
+	fi
+	go test -v ./test/integration/... -bench=. -benchtime=10s -timeout 10m
+
+.PHONY: submodules run install-crds uninstall-crds install-examples delete-examples test-integration test-integration-debug test-integration-bench
