@@ -84,7 +84,7 @@ xpkg.build: $(UP)
 
 # Ensure CLI is available for package builds and publishing
 $(foreach x,$(XPKGS),$(eval xpkg.build.$(x): $(CROSSPLANE_CLI)))
-$(foreach r,$(XPKG_REG_ORGS),$(foreach x,$(XPKGS),$(eval xpkg.release.publish.$(r).$(x): $(CROSSPLANE_CLI))))
+$(foreach r,$(XPKG_REG_ORGS),$(foreach x,$(XPKGS),$(eval xpkg.release.publish.$(r).$(x): $(CROSSPLANE_CLI) xpkg.build.$(x))))
 
 # Install CRDs into a cluster
 install-crds: generate
