@@ -238,25 +238,25 @@ jobs:
           make build-bin
 
       - name: Generate SBOM with Syft
-        uses: anchore/sbom-action@v0
+        uses: anchore/sbom-action@v0.17.2
         with:
           path: .
           format: spdx-json
           output-file: sbom.spdx.json
 
       - name: Generate SBOM with CycloneDX format
-        uses: anchore/sbom-action@v0
+        uses: anchore/sbom-action@v0.17.2
         with:
           path: .
           format: cyclonedx-json
           output-file: sbom.cyclonedx.json
 
       - name: Scan SBOM with Grype
-        uses: anchore/grype-action@v0
+        uses: anchore/scan-action@v6
         with:
           sbom: sbom.spdx.json
-          format: sarif
-          output: grype-sbom-results.sarif
+          output-format: sarif
+          output-file: grype-sbom-results.sarif
           fail-build: false
 
       - name: Upload Grype SBOM scan results
