@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Integration tests with real Backblaze B2 environment
 - Performance optimizations and caching
 
-## [0.5.0] - 2025-08-14
+## [0.5.1] - 2025-08-14
 
 ### Added
 - Standardized CI/CD workflows following "CI Builds, Release Publishes" pattern
@@ -36,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed Makefile comments to reflect current registry strategy
 
 ### Infrastructure
-- **Container Registry**: `ghcr.io/rossigee/provider-backblaze:v0.5.0`
+- **Container Registry**: `ghcr.io/rossigee/provider-backblaze:v0.5.1`
 - **CI/CD**: Standardized workflows matching other providers
 - **Security**: Enhanced security scanning and SARIF uploads
 - **Quality**: Parallel validation jobs for faster feedback
