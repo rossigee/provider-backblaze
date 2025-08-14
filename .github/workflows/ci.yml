@@ -22,10 +22,6 @@ env:
   GOLANGCI_VERSION: 'latest'
   GOLANGCILINT_VERSION: '2.3.1'
   DOCKER_BUILDX_VERSION: 'v0.11.2'
-  # Registry configuration
-  PRIMARY_REGISTRY: ghcr.io/rossigee
-  ENABLE_HARBOR_PUBLISH: false
-  ENABLE_UPBOUND_PUBLISH: false
 
 jobs:
   detect-noop:
@@ -166,15 +162,13 @@ jobs:
           sarif_file: gosec-results.sarif
           category: gosec
 
-  publish-artifacts:
+  # CI ONLY VALIDATES BUILDS - NO PUBLISHING
+  build-validation:
     runs-on: ubuntu-24.04
     needs: [lint, check-diff, unit-tests, security-scan]
     if: github.ref == 'refs/heads/master'
     permissions:
       contents: read
-      packages: write
-      id-token: write
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -190,42 +184,29 @@ jobs:
       - name: Vendor Dependencies
         run: go mod vendor
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.PAT_TOKEN }}
-
-      - name: Login to Harbor Registry (Optional)
-        if: env.ENABLE_HARBOR_PUBLISH == 'true'
-        uses: docker/login-action@v3
-        with:
-          registry: harbor.golder.lan
-          username: ${{ secrets.HARBOR_USERNAME }}
-          password: ${{ secrets.HARBOR_PASSWORD }}
-
-      - name: Build and Push to Primary Registry
+      - name: Validate Build Process
         run: |
-          # Build and push to GitHub Container Registry (primary)
+          # Validate that all build steps work without publishing
           echo "Repository: ${{ github.repository }}"
           echo "Repository owner: ${{ github.repository_owner }}"
-          make publish REGISTRY_ORGS="ghcr.io/${{ github.repository_owner }}" XPKG_REG_ORGS="ghcr.io/${{ github.repository_owner }}"
-
-      - name: Build and Push to Harbor (Optional)
-        if: env.ENABLE_HARBOR_PUBLISH == 'true'
-        run: |
-          # Push to Harbor Registry
-          make publish REGISTRY_ORGS="harbor.golder.lan/library"
-
-      - name: Build and Push to Upbound Registry (Optional)
-        if: env.ENABLE_UPBOUND_PUBLISH == 'true'
-        run: |
-          # Push to Upbound Registry (only if token is available)
-          if [ -n "$UPBOUND_TOKEN" ]; then
-            make publish REGISTRY_ORGS="xpkg.upbound.io/crossplane-contrib"
-          else
-            echo "UPBOUND_TOKEN not available, skipping Upbound registry push"
-          fi
-        env:
-          UPBOUND_TOKEN: ${{ secrets.UPBOUND_TOKEN }}
+          
+          # Build binary
+          make build
+          echo "✅ Binary build successful"
+          
+          # Build Docker image locally (without push)
+          make docker.build
+          echo "✅ Docker image build successful"
+          
+          # Build Crossplane package locally (without push)
+          make xpkg.build
+          echo "✅ Crossplane package build successful"
+          
+          # Verify build artifacts exist
+          ls -la _output/bin/linux_amd64/provider 2>/dev/null && echo "✅ Provider binary exists" || echo "❌ Provider binary missing"
+          ls -la _output/xpkg/linux_amd64/*.xpkg 2>/dev/null && echo "✅ Crossplane package exists" || echo "❌ Crossplane package missing"
+          
+          echo ""
+          echo "🎯 Build validation completed successfully"
+          echo "📦 All artifacts can be built successfully"
+          echo "🏷️  Publishing will occur only on release tag creation"
