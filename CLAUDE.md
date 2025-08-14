@@ -82,7 +82,7 @@ APIs:
 ## Registry Configuration
 
 Following the standardized approach:
-- **Primary**: `ghcr.io/rossigee/provider-backblaze:v0.1.0`
+- **Primary**: `ghcr.io/rossigee/provider-backblaze:v0.5.0`
 - **Latest**: `ghcr.io/rossigee/provider-backblaze:latest`
 - **Versioning**: Semantic versioning with automated tagging
 

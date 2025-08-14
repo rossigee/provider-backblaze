@@ -14,6 +14,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Integration tests with real Backblaze B2 environment
 - Performance optimizations and caching
 
+## [0.5.0] - 2025-08-14
+
+### Added
+- Standardized CI/CD workflows following "CI Builds, Release Publishes" pattern
+- Comprehensive security scanning with govulncheck, gosec, and CodeQL
+- Build validation in CI without publishing (eliminates tag conflicts)
+- Release workflow as single source of truth for all publishing
+- Version and latest tags now point to identical images
+
+### Changed
+- CI workflow now only validates builds (no publishing)
+- Release workflow handles all registry publishing
+- Improved Docker build process with proper versioning
+- Updated to Go 1.24.5 for consistency across workflows
+
+### Fixed
+- Eliminated registry tag conflicts between CI and Release workflows
+- Standardized registry publishing to `ghcr.io/rossigee` only
+- Resolved build system compatibility issues
+- Fixed Makefile comments to reflect current registry strategy
+
+### Infrastructure
+- **Container Registry**: `ghcr.io/rossigee/provider-backblaze:v0.5.0`
+- **CI/CD**: Standardized workflows matching other providers
+- **Security**: Enhanced security scanning and SARIF uploads
+- **Quality**: Parallel validation jobs for faster feedback
+
 ## [0.1.0] - 2025-07-27
 
 ### Added

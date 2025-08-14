@@ -419,8 +419,8 @@ make integration-test  # Requires B2 credentials
 ### 4. Tag Release
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.5.0
+git push origin v0.5.0
 ```
 
 ### 5. Build and Push Images

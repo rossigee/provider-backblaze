@@ -250,8 +250,8 @@ We follow semantic versioning (semver):
 1. Update version in relevant files
 2. Update CHANGELOG.md
 3. Create release branch
-4. Tag release: `git tag v0.1.0`
-5. Push tag: `git push origin v0.1.0`
+4. Tag release: `git tag v0.5.0`
+5. Push tag: `git push origin v0.5.0`
 6. GitHub Actions will build and publish
 
 ## Getting Help
