@@ -1,223 +1,211 @@
 # Integration Tests for Provider Backblaze
 
-This directory contains integration tests that run against real Backblaze B2 infrastructure.
+This directory contains integration tests that validate the provider against real Backblaze B2 services.
 
-## Prerequisites
+## Setup
 
-1. **Backblaze B2 Account**: You need a real Backblaze B2 account with an application key that has the following capabilities:
-   - `listBuckets`
-   - `writeBuckets` 
-   - `listFiles`
-   - `readFiles`
-   - `shareFiles`
-   - `writeFiles`
-   - `deleteFiles`
-   - `listKeys`
-   - `writeKeys`
-   - `deleteKeys`
+### Prerequisites
 
-2. **Environment Variables**: Set the following environment variables:
-   ```bash
-   export B2_APPLICATION_KEY_ID="your-application-key-id"
-   export B2_APPLICATION_KEY="your-application-key"
-   export B2_REGION="us-west-001"  # Optional, defaults to us-west-001
-   ```
-
-## Running Integration Tests
-
-### Run All Integration Tests
-```bash
-# From the provider root directory
-make test-integration
-```
-
-### Run Tests Manually
-```bash
-# Set environment variables
-export B2_APPLICATION_KEY_ID="your-key-id"
-export B2_APPLICATION_KEY="your-key"
-
-# Run from project root
-go test -v ./test/integration/... -timeout 10m
-```
-
-### Run Specific Test Suites
-```bash
-# Test only bucket operations
-go test -v ./test/integration/... -run TestBucketLifecycle -timeout 5m
-
-# Test only application key operations  
-go test -v ./test/integration/... -run TestApplicationKeyLifecycle -timeout 5m
-
-# Test only policy operations
-go test -v ./test/integration/... -run TestBucketPolicyIntegration -timeout 5m
-
-# Test error handling
-go test -v ./test/integration/... -run TestErrorHandling -timeout 5m
-```
-
-### Run Performance Benchmarks
-```bash
-go test -v ./test/integration/... -bench=. -benchtime=10s -timeout 10m
-```
-
-## Test Configuration
+1. **Backblaze B2 Account**: You need a Backblaze B2 account with application keys
+2. **Application Keys**: Create application keys in your Backblaze B2 console
+3. **Go 1.21+**: Required to run the tests
+4. **Network Access**: Tests require internet connectivity to reach Backblaze B2 APIs
 
 ### Environment Variables
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `B2_APPLICATION_KEY_ID` | Yes | - | Your Backblaze B2 application key ID |
-| `B2_APPLICATION_KEY` | Yes | - | Your Backblaze B2 application key secret |
-| `B2_REGION` | No | `us-west-001` | Backblaze B2 region for testing |
-| `SKIP_CLEANUP` | No | `false` | Set to `true` to skip cleanup (useful for debugging) |
+Set the following environment variables before running tests:
 
-### Test Timeouts
+```bash
+export B2_APPLICATION_KEY_ID="K005xxxxxxxxxxxxx"     # Your application key ID
+export B2_APPLICATION_KEY="xxxxxxxxxxxxxxxxxx"       # Your application key secret
+export B2_REGION="us-west-001"                       # Optional: defaults to us-west-001
+export SKIP_CLEANUP="false"                          # Optional: set to "true" to skip cleanup for debugging
+```
 
-- **Individual Test**: 5 minutes
-- **Cleanup Operations**: 30 seconds
-- **Full Test Suite**: 10 minutes
+**Important**: Use test credentials with limited permissions to avoid accidental data loss.
 
-## Test Coverage
+## Running Tests
 
-### Bucket Operations
-- ✅ Create bucket with different types and regions
-- ✅ Check bucket existence
-- ✅ Get bucket location/region
-- ✅ List buckets (verify our bucket appears)
-- ✅ Delete bucket
-- ✅ Delete bucket with objects (cleanup)
+### All Integration Tests
 
-### Application Key Operations (B2 Native API)
-- ✅ Create application key with specific capabilities
-- ✅ Get application key details
-- ✅ Delete application key
-- ✅ Verify key is gone after deletion
+```bash
+go test -v ./test/integration/...
+```
 
-### Bucket Policy Operations (S3 Compatible API)
-- ✅ Put bucket policy (apply JSON policy document)
-- ✅ Get bucket policy (retrieve and verify)
-- ✅ Delete bucket policy
-- ✅ Verify policy is gone after deletion
+### Specific Test Functions
 
-### Authentication & API Compatibility
-- ✅ B2 Native API authentication (application keys)
-- ✅ S3 Compatible API authentication (bucket operations)
-- ✅ Dual API support verification
+```bash
+# Run only bucket lifecycle tests
+go test -v ./test/integration/ -run TestBucketLifecycleIntegration
 
-### Error Handling
-- ✅ Non-existent bucket operations
-- ✅ Non-existent application key operations
-- ✅ Non-existent bucket policy operations
-- ✅ Graceful error handling and appropriate error messages
+# Run only application key tests  
+go test -v ./test/integration/ -run TestApplicationKeyLifecycleIntegration
 
-### Performance Benchmarks
-- ✅ ListBuckets operation performance
-- ✅ BucketExists operation performance
-- ✅ API response time measurements
+# Run only multi-region tests
+go test -v ./test/integration/ -run TestMultiRegionBucketIntegration
+```
 
-## Safety Features
+### Short Mode (Skip Integration Tests)
 
-### Automatic Cleanup
-- All tests create resources with unique names (timestamp-based)
-- Automatic cleanup runs after each test
-- Set `SKIP_CLEANUP=true` to disable cleanup for debugging
+```bash
+go test -short ./test/integration/...
+```
+
+### Benchmarks
+
+```bash
+go test -bench=. ./test/integration/...
+```
+
+## Test Categories
+
+### Core Functionality Tests
+
+- **`TestBackblazeClientIntegration`**: Basic client connection and authentication
+- **`TestBucketLifecycleIntegration`**: Complete bucket lifecycle (create, exists, delete)
+- **`TestApplicationKeyLifecycleIntegration`**: Application key management
+- **`TestBucketPolicyIntegration`**: S3-compatible bucket policies
+
+### Advanced Feature Tests
+
+- **`TestMultiRegionBucketIntegration`**: Cross-region bucket operations
+- **`TestConcurrentBucketOperations`**: Concurrent operation safety
+- **`TestBucketPolicyAdvancedIntegration`**: Complex policy scenarios
+- **`TestBucketS3CompatibilityIntegration`**: S3 API compatibility
+- **`TestApplicationKeyCapabilitiesIntegration`**: Fine-grained key permissions
+- **`TestBucketRegionValidationIntegration`**: Region validation and endpoint generation
+
+### Error Handling & Edge Cases
+
+- **`TestErrorHandlingIntegration`**: Error conditions and recovery
+- **`TestEdgeCasesIntegration`**: Boundary conditions and invalid inputs
+- **`TestTimeoutAndRetryIntegration`**: Timeout handling and retry logic
+
+### Authentication Tests
+
+- **`TestB2AuthenticationIntegration`**: Both S3-compatible and B2 native API authentication
+
+## Test Configuration
+
+### Timeouts
+
+- **Test Timeout**: 5 minutes per test
+- **Cleanup Timeout**: 30 seconds for cleanup operations
 
 ### Resource Naming
-- Test buckets: `provider-backblaze-test-{timestamp}`
-- Test keys: `test-key-{timestamp}` or `auth-test-key-{timestamp}`
-- All resources are prefixed to avoid conflicts
 
-### Isolation
-- Each test run uses unique resource names
-- Tests can run in parallel without conflicts
-- No shared state between test runs
+All test resources use the prefix `provider-backblaze-test` with timestamps to ensure uniqueness and avoid conflicts.
+
+### Cleanup Behavior
+
+- **Default**: All test resources are cleaned up automatically
+- **Debug Mode**: Set `SKIP_CLEANUP=true` to preserve resources for inspection
+- **Failed Tests**: Resources may be left behind if tests fail unexpectedly
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Missing Credentials**
+1. **Authentication Errors**
    ```
-   Error: Skipping integration tests - B2_APPLICATION_KEY_ID and B2_APPLICATION_KEY environment variables must be set
+   Error: Failed to create Backblaze client: applicationKeyId and applicationKey are required
    ```
-   **Solution**: Set the required environment variables with your B2 credentials.
+   **Solution**: Ensure `B2_APPLICATION_KEY_ID` and `B2_APPLICATION_KEY` environment variables are set.
 
-2. **Permission Denied**
+2. **Rate Limiting**
    ```
-   Error: Failed to create bucket: AccessDenied
+   Error: API rate limit exceeded
    ```
-   **Solution**: Ensure your application key has `writeBuckets` capability.
+   **Solution**: B2 has API rate limits. Wait a few minutes and retry.
 
-3. **Bucket Already Exists**
-   ```
-   Error: Failed to create bucket: BucketAlreadyExists
-   ```
-   **Solution**: This should not happen with timestamp-based naming. Try running tests again.
-
-4. **Timeout Errors**
+3. **Network Timeouts**
    ```
    Error: context deadline exceeded
    ```
-   **Solution**: Increase timeout or check your network connection to Backblaze B2.
+   **Solution**: Check internet connectivity and B2 service status.
+
+4. **Permission Denied**
+   ```
+   Error: insufficient permissions for operation
+   ```
+   **Solution**: Ensure your application keys have the required capabilities.
+
+### Required Capabilities
+
+Your application keys should have these capabilities for full test coverage:
+
+- `listBuckets` - List buckets in the account
+- `listFiles` - List files in buckets
+- `readFiles` - Download files from buckets
+- `shareFiles` - Create download URLs
+- `writeFiles` - Upload files to buckets
+- `deleteFiles` - Delete files from buckets
+- `writeBuckets` - Create and modify buckets
+- `deleteKeys` - Delete application keys (for key management tests)
+- `writeKeys` - Create application keys (for key management tests)
 
 ### Debug Mode
 
-To debug failed tests without cleanup:
+Enable debug mode to preserve test resources for inspection:
+
 ```bash
 export SKIP_CLEANUP=true
-go test -v ./test/integration/... -run TestBucketLifecycle
+go test -v ./test/integration/ -run TestBucketLifecycleIntegration
 ```
 
-This will leave test resources for manual inspection.
+Remember to manually clean up resources afterward:
 
-### Manual Cleanup
-
-If you need to manually clean up test resources:
 ```bash
-# List buckets to find test buckets
-aws s3 ls --endpoint-url=https://s3.us-west-001.backblazeb2.com
+# List buckets to see test resources
+b2 list-buckets | grep provider-backblaze-test
 
-# Delete test bucket (replace with actual bucket name)
-aws s3 rb s3://provider-backblaze-test-1234567890 --force --endpoint-url=https://s3.us-west-001.backblazeb2.com
+# Clean up buckets
+b2 delete-bucket provider-backblaze-test-xxxxx
+
+# List application keys
+b2 list-keys
+
+# Clean up application keys  
+b2 delete-key keyId
 ```
 
-## CI/CD Integration
+## Performance Benchmarks
 
-### GitHub Actions Example
-```yaml
-- name: Run Integration Tests
-  if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-  env:
-    B2_APPLICATION_KEY_ID: ${{ secrets.B2_APPLICATION_KEY_ID }}
-    B2_APPLICATION_KEY: ${{ secrets.B2_APPLICATION_KEY }}
-    B2_REGION: us-west-001
-  run: |
-    make test-integration
-```
+The integration tests include benchmarks for common operations:
 
-### Local Development
-For local development, create a `.env` file (add to `.gitignore`):
+- `BenchmarkBackblazeOperations/ListBuckets`: Measures bucket listing performance
+- `BenchmarkBackblazeOperations/BucketExists`: Measures bucket existence check performance
+
+Run benchmarks with:
+
 ```bash
-# .env file (DO NOT COMMIT)
-B2_APPLICATION_KEY_ID=your-key-id
-B2_APPLICATION_KEY=your-key
-B2_REGION=us-west-001
+go test -bench=BenchmarkBackblazeOperations ./test/integration/...
 ```
 
-Then source it before running tests:
-```bash
-source .env
-make test-integration
-```
+## Security Considerations
+
+- **Test Credentials**: Always use dedicated test credentials with minimal permissions
+- **Resource Isolation**: Test resources are isolated using unique naming conventions
+- **Cleanup**: Automatic cleanup prevents resource accumulation
+- **No Secrets**: Tests do not log or expose credential information
 
 ## Contributing
 
 When adding new integration tests:
 
-1. **Follow the pattern**: Use the existing test structure and naming conventions
-2. **Add cleanup**: Ensure all resources are cleaned up in defer functions
-3. **Use timeouts**: Set appropriate timeouts for your operations
-4. **Handle errors gracefully**: Test both success and failure scenarios
-5. **Document expectations**: Add comments explaining what each test validates
-6. **Update this README**: Document any new test capabilities or requirements
+1. Follow the existing naming convention: `TestFeatureNameIntegration`
+2. Include proper cleanup functions to prevent resource leaks
+3. Add appropriate timeout handling
+4. Test both success and failure scenarios
+5. Update this README with new test descriptions
+
+## Cost Considerations
+
+Integration tests create and delete B2 resources, which may incur minimal costs:
+
+- **Bucket Operations**: Usually free within B2 limits
+- **Application Keys**: Free to create and delete
+- **API Calls**: Minimal cost for API operations
+- **Storage**: Tests don't upload significant data
+
+The costs should be negligible for testing purposes, but monitor your B2 usage if running tests frequently.
