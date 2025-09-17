@@ -6,21 +6,24 @@
 
 ## Implementation Status
 
-### ✅ **Foundation Complete**
+### ✅ **Complete Implementation**
 - ✅ **Directory Structure**: Standard Crossplane provider layout
 - ✅ **Go Module**: Configured with crossplane-runtime v1.18.0 and AWS SDK for S3 compatibility
-- ✅ **API Types**: Comprehensive resource definitions for Bucket, User, and Policy
+- ✅ **API Types**: Comprehensive resource definitions for Bucket, User, and Policy (v1 + v1beta1)
 - ✅ **Client Implementation**: S3-compatible Backblaze B2 client using AWS SDK
-- ✅ **Controller**: Basic bucket controller with full lifecycle management
-- ✅ **Crossplane Package**: Ready for deployment with ghcr.io registry
-- ✅ **Documentation**: Complete README with examples and quick start
-- ✅ **Build System**: Makefile with standard targets and Docker build
+- ✅ **Controllers**: Complete bucket, user, and policy controllers with full lifecycle management
+- ✅ **Crossplane v2 Support**: Full dual-scope architecture with namespace isolation
+- ✅ **User Controller**: Application key management with v1beta1 support
+- ✅ **Policy Controller**: S3-compatible policy management with v1beta1 support
+- ✅ **Integration Tests**: Comprehensive test suite for v2 functionality
+- ✅ **Validation Scripts**: Deployment validation and migration tools
+- ✅ **Documentation**: Complete README, migration guide, and API documentation
+- ✅ **Build System**: Makefile with dual-scope CRD generation and testing
 
-### 🔄 **In Development**
-- **User Controller**: Application key management (not yet implemented)
-- **Policy Controller**: S3-compatible policy management (not yet implemented)
-- **Integration Tests**: Real Backblaze B2 testing environment
+### 🔄 **Future Enhancements**
 - **Advanced Features**: B2-specific lifecycle rules, CORS, encryption
+- **Real Environment Tests**: Integration tests with actual Backblaze B2 environment
+- **Performance Optimizations**: Caching and connection pooling
 
 ## Key Design Decisions
 
@@ -68,21 +71,23 @@ APIs:
 - Flexible deletion policies (DeleteIfEmpty, DeleteAll)
 - Region selection and endpoint customization
 
-**User Resource (Planned):**
+**User Resource (✅ Complete):**
 - Fine-grained capability-based permissions
 - Bucket-specific and prefix-based restrictions
 - Automatic secret generation for application integration
 - Time-limited keys with expiration support
+- Full v1beta1 namespaced support
 
-**Policy Resource (Planned):**
+**Policy Resource (✅ Complete):**
 - S3-compatible JSON policy documents
 - Simple bucket-level permission shortcuts
 - Integration with existing S3 policy tools
+- Full v1beta1 namespaced support
 
 ## Registry Configuration
 
 Following the standardized approach:
-- **Primary**: `ghcr.io/rossigee/provider-backblaze:v0.5.1`
+- **Primary**: `ghcr.io/rossigee/provider-backblaze:v0.9.1`
 - **Latest**: `ghcr.io/rossigee/provider-backblaze:latest`
 - **Versioning**: Semantic versioning with automated tagging
 

@@ -35,6 +35,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/resource"
 
 	"github.com/rossigee/provider-backblaze/apis/user/v1"
+	userv1beta1 "github.com/rossigee/provider-backblaze/apis/user/v1beta1"
 	apisv1beta1 "github.com/rossigee/provider-backblaze/apis/v1beta1"
 	"github.com/rossigee/provider-backblaze/internal/clients"
 )
@@ -306,4 +307,220 @@ func equalStringSlices(a, b []string) bool {
 	}
 	
 	return true
+}
+// SetupUserV1Beta1 adds a controller that reconciles v1beta1 User managed resources (namespaced).
+func SetupUserV1Beta1(mgr ctrl.Manager, o controller.Options) error {
+	name := managed.ControllerName(userv1beta1.UserGroupKind)
+
+	cps := []managed.ConnectionPublisher{managed.NewAPISecretPublisher(mgr.GetClient(), mgr.GetScheme())}
+
+	r := managed.NewReconciler(mgr,
+		resource.ManagedKind(userv1beta1.UserGroupVersionKind),
+		managed.WithExternalConnecter(&connectorV1Beta1{
+			kube:         mgr.GetClient(),
+			usage:        resource.NewProviderConfigUsageTracker(mgr.GetClient(), &apisv1beta1.ProviderConfigUsage{}),
+			newServiceFn: clients.NewBackblazeClient,
+		}),
+		managed.WithLogger(o.Logger.WithValues("controller", name)),
+		managed.WithPollInterval(o.PollInterval),
+		managed.WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
+		managed.WithConnectionPublishers(cps...))
+
+	return ctrl.NewControllerManagedBy(mgr).
+		Named(name).
+		WithOptions(o.ForControllerRuntime()).
+		WithEventFilter(resource.DesiredStateChanged()).
+		For(&userv1beta1.User{}).
+		Complete(ratelimiter.NewReconciler(name, r, o.GlobalRateLimiter))
+}
+
+// v1beta1 connector and external implementations for namespaced resources
+
+// A connectorV1Beta1 is expected to produce an ExternalClient when its Connect method
+// is called for v1beta1 resources.
+type connectorV1Beta1 struct {
+	kube         client.Client
+	usage        resource.Tracker
+	newServiceFn func(clients.Config) (*clients.BackblazeClient, error)
+}
+
+// Connect produces an ExternalClient for v1beta1 User resources.
+func (c *connectorV1Beta1) Connect(ctx context.Context, mg resource.Managed) (managed.ExternalClient, error) {
+	cr, ok := mg.(*userv1beta1.User)
+	if !ok {
+		return nil, errors.New(errNotUser)
+	}
+
+	if err := c.usage.Track(ctx, mg); err != nil {
+		return nil, errors.Wrap(err, errTrackPCUsage)
+	}
+
+	pc := &apisv1beta1.ProviderConfig{}
+	if err := c.kube.Get(ctx, types.NamespacedName{Name: cr.GetProviderConfigReference().Name}, pc); err != nil {
+		return nil, errors.Wrap(err, errGetPC)
+	}
+
+	cfg, err := clients.GetProviderConfig(ctx, c.kube, pc)
+	if err != nil {
+		return nil, errors.Wrap(err, errGetCreds)
+	}
+
+	service, err := c.newServiceFn(*cfg)
+	if err != nil {
+		return nil, errors.Wrap(err, errNewClient)
+	}
+
+	return &externalV1Beta1{service: service, kube: c.kube}, nil
+}
+
+// An externalV1Beta1 observes, then either creates, updates, or deletes an
+// external resource to ensure it reflects the v1beta1 managed resource's desired state.
+type externalV1Beta1 struct {
+	service *clients.BackblazeClient
+	kube    client.Client
+}
+
+func (c *externalV1Beta1) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) {
+	cr, ok := mg.(*userv1beta1.User)
+	if !ok {
+		return managed.ExternalObservation{}, errors.New(errNotUser)
+	}
+
+	// Use external name if set, otherwise we haven't created the key yet
+	applicationKeyID := meta.GetExternalName(cr)
+	if applicationKeyID == "" {
+		return managed.ExternalObservation{
+			ResourceExists: false,
+		}, nil
+	}
+
+	// Get the application key from Backblaze B2
+	key, err := c.service.GetApplicationKey(ctx, applicationKeyID)
+	if err != nil {
+		if err.Error() == "application key not found" {
+			return managed.ExternalObservation{
+				ResourceExists: false,
+			}, nil
+		}
+		return managed.ExternalObservation{}, errors.Wrap(err, errObserveUser)
+	}
+
+	// Check if the key configuration matches desired state
+	upToDate := key.KeyName == cr.Spec.ForProvider.KeyName &&
+		equalStringSlices(key.Capabilities, cr.Spec.ForProvider.Capabilities) &&
+		key.BucketID == cr.Spec.ForProvider.BucketID &&
+		key.NamePrefix == cr.Spec.ForProvider.NamePrefix
+
+	// Update status with current key information
+	cr.Status.AtProvider.ApplicationKeyID = key.ApplicationKeyID
+	cr.Status.AtProvider.KeyName = key.KeyName
+	cr.Status.AtProvider.Capabilities = key.Capabilities
+	cr.Status.AtProvider.BucketID = key.BucketID
+	cr.Status.AtProvider.NamePrefix = key.NamePrefix
+
+	if key.ExpirationTimestamp != nil {
+		expirationTime := time.Unix(*key.ExpirationTimestamp/1000, 0)
+		cr.Status.AtProvider.ExpirationTimestamp = &metav1.Time{Time: expirationTime}
+	}
+
+	return managed.ExternalObservation{
+		ResourceExists:   true,
+		ResourceUpToDate: upToDate,
+	}, nil
+}
+
+func (c *externalV1Beta1) Create(ctx context.Context, mg resource.Managed) (managed.ExternalCreation, error) {
+	cr, ok := mg.(*userv1beta1.User)
+	if !ok {
+		return managed.ExternalCreation{}, errors.New(errNotUser)
+	}
+
+	// Create the application key
+	key, err := c.service.CreateApplicationKey(
+		ctx,
+		cr.Spec.ForProvider.KeyName,
+		cr.Spec.ForProvider.Capabilities,
+		cr.Spec.ForProvider.BucketID,
+		cr.Spec.ForProvider.NamePrefix,
+		cr.Spec.ForProvider.ValidDurationInSeconds,
+	)
+	if err != nil {
+		return managed.ExternalCreation{}, errors.Wrap(err, errCreateUser)
+	}
+
+	// Set external name to the application key ID
+	meta.SetExternalName(cr, key.ApplicationKeyID)
+
+	// Write the application key to the specified secret
+	err = c.writeSecretForKeyV1Beta1(ctx, cr, key)
+	if err != nil {
+		return managed.ExternalCreation{}, errors.Wrap(err, errWriteSecret)
+	}
+
+	return managed.ExternalCreation{
+		// Connection details will be written to the secret
+		ConnectionDetails: managed.ConnectionDetails{},
+	}, nil
+}
+
+func (c *externalV1Beta1) Update(ctx context.Context, mg resource.Managed) (managed.ExternalUpdate, error) {
+	// Application keys cannot be updated in Backblaze B2
+	// If the spec changes, we need to delete and recreate
+	return managed.ExternalUpdate{}, nil
+}
+
+func (c *externalV1Beta1) Delete(ctx context.Context, mg resource.Managed) (managed.ExternalDelete, error) {
+	cr, ok := mg.(*userv1beta1.User)
+	if !ok {
+		return managed.ExternalDelete{}, errors.New(errNotUser)
+	}
+
+	applicationKeyID := meta.GetExternalName(cr)
+	if applicationKeyID == "" {
+		// Nothing to delete
+		return managed.ExternalDelete{}, nil
+	}
+
+	err := c.service.DeleteApplicationKey(ctx, applicationKeyID)
+	if err != nil && err.Error() != "application key not found" {
+		return managed.ExternalDelete{}, errors.Wrap(err, errDeleteUser)
+	}
+
+	return managed.ExternalDelete{}, nil
+}
+
+func (c *externalV1Beta1) Disconnect(ctx context.Context) error {
+	// No special disconnect logic needed for Backblaze B2 client
+	return nil
+}
+
+// writeSecretForKeyV1Beta1 writes the application key to the specified secret for v1beta1 resources
+func (c *externalV1Beta1) writeSecretForKeyV1Beta1(ctx context.Context, cr *userv1beta1.User, key *clients.B2CreateKeyResponse) error {
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      cr.Spec.ForProvider.WriteSecretToRef.Name,
+			Namespace: cr.Spec.ForProvider.WriteSecretToRef.Namespace,
+		},
+		Data: map[string][]byte{
+			"applicationKeyId": []byte(key.ApplicationKeyID),
+			"applicationKey":   []byte(key.ApplicationKey),
+			"keyName":          []byte(key.KeyName),
+		},
+	}
+
+	err := c.kube.Create(ctx, secret)
+	if err != nil {
+		// If secret already exists, update it
+		existingSecret := &corev1.Secret{}
+		if getErr := c.kube.Get(ctx, types.NamespacedName{
+			Name:      secret.Name,
+			Namespace: secret.Namespace,
+		}, existingSecret); getErr == nil {
+			existingSecret.Data = secret.Data
+			return c.kube.Update(ctx, existingSecret)
+		}
+		return err
+	}
+
+	return nil
 }

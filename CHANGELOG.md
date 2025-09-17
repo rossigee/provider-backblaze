@@ -8,11 +8,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Planned
-- User resource for Backblaze B2 application key management
-- Policy resource for S3-compatible bucket policies  
 - Advanced bucket features (lifecycle rules, CORS, encryption)
 - Integration tests with real Backblaze B2 environment
 - Performance optimizations and caching
+- Terraform import compatibility
+- Cross-region replication support
+
+## [0.9.1] - 2025-09-17
+
+### 🚀 Major Release: Full Crossplane v2 Support
+
+**This release adds complete Crossplane v2 support with dual-scope resource architecture.**
+
+### Added
+- **Full Crossplane v2 Support**: Both cluster-scoped (v1) and namespaced (v1beta1) APIs
+- **User Controller**: Complete application key management with v1beta1 support
+- **Policy Controller**: S3-compatible bucket policy management with v1beta1 support
+- **Dual-Scope Architecture**: All resources support both v1 and v1beta1 versions
+- **Namespace Isolation**: v1beta1 resources provide team-based multi-tenancy
+- **Comprehensive Integration Tests**: Full test suite for v2 functionality
+- **Migration Documentation**: Complete guide for v2 adoption in `docs/CROSSPLANE_V2_MIGRATION.md`
+- **Validation Scripts**: `test/validate_v2_deployment.sh` for deployment verification
+
+### API Resources (NEW)
+- **User v1**: `user.backblaze.crossplane.io/v1` (cluster-scoped)
+- **User v1beta1**: `user.backblaze.m.crossplane.io/v1beta1` (namespaced) ✨ **Recommended**
+- **Policy v1**: `policy.backblaze.crossplane.io/v1` (cluster-scoped)
+- **Policy v1beta1**: `policy.backblaze.m.crossplane.io/v1beta1` (namespaced) ✨ **Recommended**
+- **Bucket v1beta1**: `bucket.backblaze.m.crossplane.io/v1beta1` (namespaced) ✨ **Recommended**
+
+### Enhanced Features
+- **Multi-Tenancy**: Namespace-level resource isolation and RBAC control
+- **Secret Management**: Automatic application key secrets with namespace boundaries
+- **Policy Management**: Both simple bucket policies and complex JSON policy documents
+- **Application Keys**: Fine-grained capability-based permissions with bucket restrictions
+- **Backward Compatibility**: Existing v1 resources continue working unchanged
+
+### Infrastructure Updates
+- **Go 1.25.1**: Updated to latest Go version
+- **golangci-lint 2.4.0**: Latest linter version with modern Go support
+- **CI/CD Workflows**: Updated with correct versions and comprehensive testing
+- **Build System**: Enhanced with dual-scope CRD generation
+- **Quality Gates**: All tests pass including new v2 functionality tests
+
+### Documentation
+- **README**: Complete v2 examples and migration information
+- **Migration Guide**: Detailed Crossplane v2 migration with RBAC examples
+- **Integration Tests**: Comprehensive test suite validating dual-scope functionality
+- **API Documentation**: Updated with all v1beta1 resource specifications
 
 ## [0.5.1] - 2025-08-14
 
@@ -97,13 +140,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Bucket CRUD Operations | ✅ Complete | Full lifecycle management |
+| Bucket CRUD Operations | ✅ Complete | Full lifecycle management (v1 + v1beta1) |
+| User/Key Management | ✅ Complete | Application key management (v1 + v1beta1) |
+| Bucket Policies | ✅ Complete | S3-compatible policies (v1 + v1beta1) |
 | S3 API Compatibility | ✅ Complete | Works with existing S3 tools |
 | Regional Endpoints | ✅ Complete | All B2 regions supported |
 | Application Key Auth | ✅ Complete | B2-native authentication |
 | Connection Secrets | ✅ Complete | Auto-generated for apps |
-| User/Key Management | 🔄 Planned | Next major feature |
-| Bucket Policies | 🔄 Planned | S3-compatible policies |
+| Crossplane v2 Support | ✅ Complete | Dual-scope with namespace isolation |
+| Multi-Tenancy | ✅ Complete | Namespace-based resource isolation |
+| RBAC Integration | ✅ Complete | Namespace-level permissions |
 | Lifecycle Rules | 🔄 Planned | B2-specific lifecycle |
 | CORS Configuration | 🔄 Planned | Web application support |
 | Bucket Encryption | 🔄 Planned | B2 encryption features |
@@ -123,9 +169,9 @@ This is the initial release, so no migration is needed. For users migrating from
 
 ## Known Issues
 
-- User and Policy resources not yet implemented
-- DeepCopy generation requires manual intervention for complex API tests
-- Integration tests require manual Backblaze B2 account setup
+- Integration tests require manual Backblaze B2 account setup (environmental variables)
+- Advanced B2-specific features (lifecycle, CORS, encryption) not yet implemented
+- Cross-region replication capabilities pending B2 API support
 
 ## Acknowledgments
 
