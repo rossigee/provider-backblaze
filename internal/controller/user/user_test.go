@@ -22,7 +22,7 @@ import (
 	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/rossigee/provider-backblaze/apis/user/v1"
+	userv1beta1 "github.com/rossigee/provider-backblaze/apis/user/v1beta1"
 )
 
 func TestEqualStringSlices(t *testing.T) {
@@ -75,16 +75,16 @@ func TestEqualStringSlices(t *testing.T) {
 
 func TestUserParametersValidation(t *testing.T) {
 	cases := map[string]struct {
-		user    *v1.User
+		user    *userv1beta1.User
 		wantErr bool
 	}{
 		"ValidMinimal": {
-			user: &v1.User{
+			user: &userv1beta1.User{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-user",
 				},
-				Spec: v1.UserSpec{
-					ForProvider: v1.UserParameters{
+				Spec: userv1beta1.UserSpec{
+					ForProvider: userv1beta1.UserParameters{
 						KeyName:      "test-key",
 						Capabilities: []string{"listBuckets"},
 						WriteSecretToRef: xpv1.SecretReference{
@@ -97,12 +97,12 @@ func TestUserParametersValidation(t *testing.T) {
 			wantErr: false,
 		},
 		"ValidWithBucket": {
-			user: &v1.User{
+			user: &userv1beta1.User{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-user",
 				},
-				Spec: v1.UserSpec{
-					ForProvider: v1.UserParameters{
+				Spec: userv1beta1.UserSpec{
+					ForProvider: userv1beta1.UserParameters{
 						KeyName:      "test-key",
 						Capabilities: []string{"listFiles", "readFiles"},
 						BucketID:     "bucket-123",
@@ -117,12 +117,12 @@ func TestUserParametersValidation(t *testing.T) {
 			wantErr: false,
 		},
 		"ValidWithExpiration": {
-			user: &v1.User{
+			user: &userv1beta1.User{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-user",
 				},
-				Spec: v1.UserSpec{
-					ForProvider: v1.UserParameters{
+				Spec: userv1beta1.UserSpec{
+					ForProvider: userv1beta1.UserParameters{
 						KeyName:                "test-key",
 						Capabilities:           []string{"listBuckets"},
 						ValidDurationInSeconds: func() *int { i := 86400; return &i }(), // 1 day
@@ -202,9 +202,9 @@ func TestUserCapabilities(t *testing.T) {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			user := &v1.User{
-				Spec: v1.UserSpec{
-					ForProvider: v1.UserParameters{
+			user := &userv1beta1.User{
+				Spec: userv1beta1.UserSpec{
+					ForProvider: userv1beta1.UserParameters{
 						KeyName:      "test-key",
 						Capabilities: tc.capabilities,
 						WriteSecretToRef: xpv1.SecretReference{

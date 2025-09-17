@@ -22,17 +22,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 
 	// v1 APIs (cluster-scoped)
-	bucketv1 "github.com/rossigee/provider-backblaze/apis/bucket/v1"
-	userv1 "github.com/rossigee/provider-backblaze/apis/user/v1"
-	policyv1 "github.com/rossigee/provider-backblaze/apis/policy/v1"
 
 	// v1beta1 APIs (namespaced)
 	bucketv1beta1 "github.com/rossigee/provider-backblaze/apis/bucket/v1beta1"

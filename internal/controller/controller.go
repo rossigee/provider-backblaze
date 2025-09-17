@@ -29,7 +29,7 @@ import (
 
 // Setup sets up all controllers for the Backblaze provider.
 func Setup(mgr ctrl.Manager, o controller.Options) error {
-	// v1 controllers (cluster-scoped - legacy support)
+	// v1beta1 controllers (namespaced - Crossplane v2 only)
 	if err := bucket.SetupBucket(mgr, o); err != nil {
 		return err
 	}
@@ -37,17 +37,6 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 		return err
 	}
 	if err := policy.SetupPolicy(mgr, o); err != nil {
-		return err
-	}
-
-	// v1beta1 controllers (namespaced - Crossplane v2)
-	if err := bucket.SetupBucketV1Beta1(mgr, o); err != nil {
-		return err
-	}
-	if err := user.SetupUserV1Beta1(mgr, o); err != nil {
-		return err
-	}
-	if err := policy.SetupPolicyV1Beta1(mgr, o); err != nil {
 		return err
 	}
 	return nil

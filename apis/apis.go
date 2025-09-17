@@ -20,11 +20,8 @@ package apis
 import (
 	"k8s.io/apimachinery/pkg/runtime"
 
-	bucketv1 "github.com/rossigee/provider-backblaze/apis/bucket/v1"
 	bucketv1beta1 "github.com/rossigee/provider-backblaze/apis/bucket/v1beta1"
-	policyv1 "github.com/rossigee/provider-backblaze/apis/policy/v1"
 	policyv1beta1 "github.com/rossigee/provider-backblaze/apis/policy/v1beta1"
-	userv1 "github.com/rossigee/provider-backblaze/apis/user/v1"
 	userv1beta1 "github.com/rossigee/provider-backblaze/apis/user/v1beta1"
 	v1beta1 "github.com/rossigee/provider-backblaze/apis/v1beta1"
 )
@@ -32,11 +29,7 @@ import (
 func init() {
 	// Register the types with the Scheme so the components can map objects to GroupVersionKinds and back
 	AddToSchemes = append(AddToSchemes, v1beta1.SchemeBuilder.AddToScheme)
-	// v1 cluster-scoped APIs (legacy support)
-	AddToSchemes = append(AddToSchemes, bucketv1.SchemeBuilder.AddToScheme)
-	AddToSchemes = append(AddToSchemes, userv1.SchemeBuilder.AddToScheme)
-	AddToSchemes = append(AddToSchemes, policyv1.SchemeBuilder.AddToScheme)
-	// v1beta1 namespaced APIs (Crossplane v2)
+	// v1beta1 namespaced APIs (Crossplane v2 only)
 	AddToSchemes = append(AddToSchemes, bucketv1beta1.SchemeBuilder.AddToScheme)
 	AddToSchemes = append(AddToSchemes, userv1beta1.SchemeBuilder.AddToScheme)
 	AddToSchemes = append(AddToSchemes, policyv1beta1.SchemeBuilder.AddToScheme)

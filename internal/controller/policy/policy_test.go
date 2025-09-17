@@ -22,19 +22,19 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/rossigee/provider-backblaze/apis/policy/v1"
+	policyv1beta1 "github.com/rossigee/provider-backblaze/apis/policy/v1beta1"
 )
 
 func TestGeneratePolicyDocument(t *testing.T) {
 	cases := map[string]struct {
-		cr      *v1.Policy
+		cr      *policyv1beta1.Policy
 		want    string
 		wantErr bool
 	}{
 		"AllowBucket": {
-			cr: &v1.Policy{
-				Spec: v1.PolicySpec{
-					ForProvider: v1.PolicyParameters{
+			cr: &policyv1beta1.Policy{
+				Spec: policyv1beta1.PolicySpec{
+					ForProvider: policyv1beta1.PolicyParameters{
 						AllowBucket: "test-bucket",
 					},
 				},
@@ -43,9 +43,9 @@ func TestGeneratePolicyDocument(t *testing.T) {
 			wantErr: false,
 		},
 		"RawPolicy": {
-			cr: &v1.Policy{
-				Spec: v1.PolicySpec{
-					ForProvider: v1.PolicyParameters{
+			cr: &policyv1beta1.Policy{
+				Spec: policyv1beta1.PolicySpec{
+					ForProvider: policyv1beta1.PolicyParameters{
 						RawPolicy: `{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":"*","Action":"s3:GetObject","Resource":"arn:aws:s3:::test-bucket/*"}]}`,
 					},
 				},
@@ -54,9 +54,9 @@ func TestGeneratePolicyDocument(t *testing.T) {
 			wantErr: false,
 		},
 		"InvalidRawPolicy": {
-			cr: &v1.Policy{
-				Spec: v1.PolicySpec{
-					ForProvider: v1.PolicyParameters{
+			cr: &policyv1beta1.Policy{
+				Spec: policyv1beta1.PolicySpec{
+					ForProvider: policyv1beta1.PolicyParameters{
 						RawPolicy: `invalid json`,
 					},
 				},
@@ -64,9 +64,9 @@ func TestGeneratePolicyDocument(t *testing.T) {
 			wantErr: true,
 		},
 		"NeitherSet": {
-			cr: &v1.Policy{
-				Spec: v1.PolicySpec{
-					ForProvider: v1.PolicyParameters{},
+			cr: &policyv1beta1.Policy{
+				Spec: policyv1beta1.PolicySpec{
+					ForProvider: policyv1beta1.PolicyParameters{},
 				},
 			},
 			wantErr: true,
@@ -113,14 +113,14 @@ func TestGeneratePolicyDocument(t *testing.T) {
 
 func TestGetBucketNameFromPolicy(t *testing.T) {
 	cases := map[string]struct {
-		cr      *v1.Policy
+		cr      *policyv1beta1.Policy
 		want    string
 		wantErr bool
 	}{
 		"AllowBucket": {
-			cr: &v1.Policy{
-				Spec: v1.PolicySpec{
-					ForProvider: v1.PolicyParameters{
+			cr: &policyv1beta1.Policy{
+				Spec: policyv1beta1.PolicySpec{
+					ForProvider: policyv1beta1.PolicyParameters{
 						AllowBucket: "test-bucket",
 					},
 				},
@@ -129,9 +129,9 @@ func TestGetBucketNameFromPolicy(t *testing.T) {
 			wantErr: false,
 		},
 		"RawPolicyWithBucketARN": {
-			cr: &v1.Policy{
-				Spec: v1.PolicySpec{
-					ForProvider: v1.PolicyParameters{
+			cr: &policyv1beta1.Policy{
+				Spec: policyv1beta1.PolicySpec{
+					ForProvider: policyv1beta1.PolicyParameters{
 						RawPolicy: `{"Statement":[{"Resource":"arn:aws:s3:::my-bucket/*"}]}`,
 					},
 				},
@@ -140,9 +140,9 @@ func TestGetBucketNameFromPolicy(t *testing.T) {
 			wantErr: false,
 		},
 		"RawPolicyWithBucketARNArray": {
-			cr: &v1.Policy{
-				Spec: v1.PolicySpec{
-					ForProvider: v1.PolicyParameters{
+			cr: &policyv1beta1.Policy{
+				Spec: policyv1beta1.PolicySpec{
+					ForProvider: policyv1beta1.PolicyParameters{
 						RawPolicy: `{"Statement":[{"Resource":["arn:aws:s3:::my-bucket","arn:aws:s3:::my-bucket/*"]}]}`,
 					},
 				},
@@ -151,9 +151,9 @@ func TestGetBucketNameFromPolicy(t *testing.T) {
 			wantErr: false,
 		},
 		"InvalidRawPolicy": {
-			cr: &v1.Policy{
-				Spec: v1.PolicySpec{
-					ForProvider: v1.PolicyParameters{
+			cr: &policyv1beta1.Policy{
+				Spec: policyv1beta1.PolicySpec{
+					ForProvider: policyv1beta1.PolicyParameters{
 						RawPolicy: `invalid json`,
 					},
 				},
@@ -161,9 +161,9 @@ func TestGetBucketNameFromPolicy(t *testing.T) {
 			wantErr: true,
 		},
 		"NeitherSet": {
-			cr: &v1.Policy{
-				Spec: v1.PolicySpec{
-					ForProvider: v1.PolicyParameters{},
+			cr: &policyv1beta1.Policy{
+				Spec: policyv1beta1.PolicySpec{
+					ForProvider: policyv1beta1.PolicyParameters{},
 				},
 			},
 			wantErr: true,
@@ -279,16 +279,16 @@ func TestIsPolicyUpToDate(t *testing.T) {
 
 func TestPolicyParametersValidation(t *testing.T) {
 	cases := map[string]struct {
-		policy  *v1.Policy
+		policy  *policyv1beta1.Policy
 		wantErr bool
 	}{
 		"ValidAllowBucket": {
-			policy: &v1.Policy{
+			policy: &policyv1beta1.Policy{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-policy",
 				},
-				Spec: v1.PolicySpec{
-					ForProvider: v1.PolicyParameters{
+				Spec: policyv1beta1.PolicySpec{
+					ForProvider: policyv1beta1.PolicyParameters{
 						AllowBucket: "test-bucket",
 						PolicyName:  "TestPolicy",
 						Description: "Test policy for bucket access",
@@ -298,12 +298,12 @@ func TestPolicyParametersValidation(t *testing.T) {
 			wantErr: false,
 		},
 		"ValidRawPolicy": {
-			policy: &v1.Policy{
+			policy: &policyv1beta1.Policy{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-policy",
 				},
-				Spec: v1.PolicySpec{
-					ForProvider: v1.PolicyParameters{
+				Spec: policyv1beta1.PolicySpec{
+					ForProvider: policyv1beta1.PolicyParameters{
 						RawPolicy: `{
 							"Version": "2012-10-17",
 							"Statement": [
@@ -323,12 +323,12 @@ func TestPolicyParametersValidation(t *testing.T) {
 			wantErr: false,
 		},
 		"EmptyPolicy": {
-			policy: &v1.Policy{
+			policy: &policyv1beta1.Policy{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-policy",
 				},
-				Spec: v1.PolicySpec{
-					ForProvider: v1.PolicyParameters{},
+				Spec: policyv1beta1.PolicySpec{
+					ForProvider: policyv1beta1.PolicyParameters{},
 				},
 			},
 			wantErr: true,
@@ -359,16 +359,16 @@ func TestPolicyParametersValidation(t *testing.T) {
 
 func TestGetPolicyName(t *testing.T) {
 	cases := map[string]struct {
-		policy *v1.Policy
+		policy *policyv1beta1.Policy
 		want   string
 	}{
 		"ExplicitPolicyName": {
-			policy: &v1.Policy{
+			policy: &policyv1beta1.Policy{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "my-policy-resource",
 				},
-				Spec: v1.PolicySpec{
-					ForProvider: v1.PolicyParameters{
+				Spec: policyv1beta1.PolicySpec{
+					ForProvider: policyv1beta1.PolicyParameters{
 						PolicyName: "MyCustomPolicy",
 					},
 				},
@@ -376,12 +376,12 @@ func TestGetPolicyName(t *testing.T) {
 			want: "MyCustomPolicy",
 		},
 		"DefaultToResourceName": {
-			policy: &v1.Policy{
+			policy: &policyv1beta1.Policy{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "my-policy-resource",
 				},
-				Spec: v1.PolicySpec{
-					ForProvider: v1.PolicyParameters{
+				Spec: policyv1beta1.PolicySpec{
+					ForProvider: policyv1beta1.PolicyParameters{
 						// No explicit PolicyName
 					},
 				},
