@@ -27,7 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
+	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 
 	// v1beta1 APIs (namespaced - Crossplane v2 only)
 	bucketv1beta1 "github.com/rossigee/provider-backblaze/apis/bucket/v1beta1"

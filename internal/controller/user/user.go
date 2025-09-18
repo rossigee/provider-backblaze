@@ -27,12 +27,12 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/crossplane/crossplane-runtime/pkg/controller"
-	"github.com/crossplane/crossplane-runtime/pkg/event"
-	"github.com/crossplane/crossplane-runtime/pkg/meta"
-	"github.com/crossplane/crossplane-runtime/pkg/ratelimiter"
-	"github.com/crossplane/crossplane-runtime/pkg/reconciler/managed"
-	"github.com/crossplane/crossplane-runtime/pkg/resource"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/event"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
 
 	userv1beta1 "github.com/rossigee/provider-backblaze/apis/user/v1beta1"
 	apisv1beta1 "github.com/rossigee/provider-backblaze/apis/v1beta1"
@@ -55,19 +55,16 @@ const (
 func SetupUser(mgr ctrl.Manager, o controller.Options) error {
 	name := managed.ControllerName(userv1beta1.UserGroupKind)
 
-	cps := []managed.ConnectionPublisher{managed.NewAPISecretPublisher(mgr.GetClient(), mgr.GetScheme())}
-
 	r := managed.NewReconciler(mgr,
 		resource.ManagedKind(userv1beta1.UserGroupVersionKind),
 		managed.WithExternalConnecter(&connector{
 			kube:         mgr.GetClient(),
-			usage:        resource.NewProviderConfigUsageTracker(mgr.GetClient(), &apisv1beta1.ProviderConfigUsage{}),
+			usage:        resource.TrackerFn(func(ctx context.Context, mg resource.Managed) error { return nil }),
 			newServiceFn: clients.NewBackblazeClient,
 		}),
 		managed.WithLogger(o.Logger.WithValues("controller", name)),
 		managed.WithPollInterval(o.PollInterval),
-		managed.WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
-		managed.WithConnectionPublishers(cps...))
+		managed.WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))))
 
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(name).
@@ -120,6 +117,10 @@ func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.E
 
 	if err := c.usage.Track(ctx, mg); err != nil {
 		return nil, errors.Wrap(err, errTrackPCUsage)
+	}
+
+	if cr.GetProviderConfigReference() == nil {
+		return nil, errors.New("no providerConfigRef provided")
 	}
 
 	pc := &apisv1beta1.ProviderConfig{}

@@ -19,7 +19,7 @@ package features
 import (
 	"testing"
 
-	"github.com/crossplane/crossplane-runtime/pkg/feature"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/feature"
 )
 
 func TestFeatureFlags(t *testing.T) {

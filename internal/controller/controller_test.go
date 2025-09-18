@@ -19,8 +19,8 @@ package controller
 import (
 	"testing"
 
-	"github.com/crossplane/crossplane-runtime/pkg/controller"
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
 )
 
 func TestSetupFunctionExists(t *testing.T) {

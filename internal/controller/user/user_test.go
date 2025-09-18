@@ -19,7 +19,7 @@ package user
 import (
 	"testing"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
+	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	userv1beta1 "github.com/rossigee/provider-backblaze/apis/user/v1beta1"
