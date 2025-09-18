@@ -22,10 +22,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 
 	// v1beta1 APIs (namespaced - Crossplane v2 only)
 	bucketv1beta1 "github.com/rossigee/provider-backblaze/apis/bucket/v1beta1"
@@ -35,8 +37,8 @@ import (
 	apisv1beta1 "github.com/rossigee/provider-backblaze/apis/v1beta1"
 )
 
-// TestV2APICompatibility validates that v1beta1 namespaced APIs are properly registered
-func TestV2APICompatibility(t *testing.T) {
+// TestV1Beta1APICompatibility validates that v1beta1 namespaced APIs are properly registered
+func TestV1Beta1APICompatibility(t *testing.T) {
 	scheme := runtime.NewScheme()
 
 	// Register v1beta1 namespaced APIs only
@@ -52,52 +54,6 @@ func TestV2APICompatibility(t *testing.T) {
 	assert.Contains(t, gvks, bucketv1beta1.BucketGroupVersionKind, "v1beta1 Bucket GVK should be registered")
 	assert.Contains(t, gvks, userv1beta1.UserGroupVersionKind, "v1beta1 User GVK should be registered")
 	assert.Contains(t, gvks, policyv1beta1.PolicyGroupVersionKind, "v1beta1 Policy GVK should be registered")
-}
-
-// TestV1BucketClusterScoped validates v1 cluster-scoped bucket functionality
-func TestV1BucketClusterScoped(t *testing.T) {
-	scheme := runtime.NewScheme()
-	require.NoError(t, bucketv1.SchemeBuilder.AddToScheme(scheme))
-	require.NoError(t, apisv1beta1.SchemeBuilder.AddToScheme(scheme))
-
-	client := fake.NewClientBuilder().WithScheme(scheme).Build()
-
-	bucket := &bucketv1.Bucket{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "test-cluster-bucket",
-		},
-		Spec: bucketv1.BucketSpec{
-			ResourceSpec: xpv1.ResourceSpec{
-				ProviderConfigReference: &xpv1.Reference{Name: "default"},
-			},
-			ForProvider: bucketv1.BucketParameters{
-				BucketName: "test-cluster-bucket-b2",
-				Region:     "us-west-001",
-				BucketType: "allPrivate",
-			},
-		},
-	}
-
-	ctx := context.Background()
-
-	// Create bucket
-	err := client.Create(ctx, bucket)
-	require.NoError(t, err, "Should create v1 cluster-scoped bucket")
-
-	// Retrieve bucket
-	retrieved := &bucketv1.Bucket{}
-	err = client.Get(ctx, types.NamespacedName{Name: "test-cluster-bucket"}, retrieved)
-	require.NoError(t, err, "Should retrieve v1 cluster-scoped bucket")
-
-	// Validate properties
-	assert.Equal(t, "test-cluster-bucket-b2", retrieved.Spec.ForProvider.BucketName)
-	assert.Equal(t, "us-west-001", retrieved.Spec.ForProvider.Region)
-	assert.Equal(t, "allPrivate", retrieved.Spec.ForProvider.BucketType)
-	assert.Equal(t, "test-cluster-bucket-b2", retrieved.GetBucketName())
-
-	// Validate managed resource interface
-	assert.NotNil(t, retrieved.GetProviderConfigReference())
-	assert.Equal(t, "default", retrieved.GetProviderConfigReference().Name)
 }
 
 // TestV1Beta1BucketNamespaced validates v1beta1 namespaced bucket functionality
@@ -300,84 +256,17 @@ func TestNamespaceIsolation(t *testing.T) {
 	assert.Equal(t, "namespace2", retrieved2.Namespace)
 }
 
-// TestDualVersionCoexistence validates that v1 and v1beta1 can coexist
-func TestDualVersionCoexistence(t *testing.T) {
-	scheme := runtime.NewScheme()
-	require.NoError(t, bucketv1.SchemeBuilder.AddToScheme(scheme))
-	require.NoError(t, bucketv1beta1.SchemeBuilder.AddToScheme(scheme))
-	require.NoError(t, apisv1beta1.SchemeBuilder.AddToScheme(scheme))
-
-	client := fake.NewClientBuilder().WithScheme(scheme).Build()
-	ctx := context.Background()
-
-	// Create v1 cluster-scoped bucket
-	v1Bucket := &bucketv1.Bucket{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "cluster-scoped-bucket",
-		},
-		Spec: bucketv1.BucketSpec{
-			ResourceSpec: xpv1.ResourceSpec{
-				ProviderConfigReference: &xpv1.Reference{Name: "default"},
-			},
-			ForProvider: bucketv1.BucketParameters{
-				BucketName: "v1-bucket",
-				Region:     "us-west-001",
-			},
-		},
-	}
-
-	// Create v1beta1 namespaced bucket
-	v1beta1Bucket := &bucketv1beta1.Bucket{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "namespaced-bucket",
-			Namespace: "test-namespace",
-		},
-		Spec: bucketv1beta1.BucketSpec{
-			ResourceSpec: xpv1.ResourceSpec{
-				ProviderConfigReference: &xpv1.Reference{Name: "default"},
-			},
-			ForProvider: bucketv1beta1.BucketParameters{
-				BucketName: "v1beta1-bucket",
-				Region:     "us-west-001",
-			},
-		},
-	}
-
-	// Create both versions
-	require.NoError(t, client.Create(ctx, v1Bucket))
-	require.NoError(t, client.Create(ctx, v1beta1Bucket))
-
-	// Retrieve both versions
-	retrievedV1 := &bucketv1.Bucket{}
-	err := client.Get(ctx, types.NamespacedName{Name: "cluster-scoped-bucket"}, retrievedV1)
-	require.NoError(t, err)
-
-	retrievedV1Beta1 := &bucketv1beta1.Bucket{}
-	err = client.Get(ctx, types.NamespacedName{Name: "namespaced-bucket", Namespace: "test-namespace"}, retrievedV1Beta1)
-	require.NoError(t, err)
-
-	// Validate both work independently
-	assert.Equal(t, "v1-bucket", retrievedV1.Spec.ForProvider.BucketName)
-	assert.Equal(t, "v1beta1-bucket", retrievedV1Beta1.Spec.ForProvider.BucketName)
-	assert.Empty(t, retrievedV1.Namespace) // Cluster-scoped has no namespace
-	assert.Equal(t, "test-namespace", retrievedV1Beta1.Namespace)
-}
-
-// TestAPIGroupConsistency validates API group naming consistency
+// TestAPIGroupConsistency validates API group naming consistency for v1beta1
 func TestAPIGroupConsistency(t *testing.T) {
-	// v1 APIs (cluster-scoped)
-	assert.Equal(t, "bucket.backblaze.crossplane.io", bucketv1.Group)
-	assert.Equal(t, "user.backblaze.crossplane.io", userv1.Group)
-	assert.Equal(t, "policy.backblaze.crossplane.io", policyv1.Group)
-
 	// v1beta1 APIs (namespaced with .m. pattern)
 	assert.Equal(t, "bucket.backblaze.m.crossplane.io", bucketv1beta1.Group)
 	assert.Equal(t, "user.backblaze.m.crossplane.io", userv1beta1.Group)
 	assert.Equal(t, "policy.backblaze.m.crossplane.io", policyv1beta1.Group)
 
 	// Validate version consistency
-	assert.Equal(t, "v1", bucketv1.Version)
 	assert.Equal(t, "v1beta1", bucketv1beta1.Version)
+	assert.Equal(t, "v1beta1", userv1beta1.Version)
+	assert.Equal(t, "v1beta1", policyv1beta1.Version)
 }
 
 // BenchmarkResourceCreation benchmarks resource creation performance
