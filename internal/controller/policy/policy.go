@@ -384,6 +384,19 @@ func (c *external) getPolicyNameV1Beta1(cr *policyv1beta1.Policy) string {
 	return cr.Name
 }
 
+// Aliases for tests (standard naming without version suffix)
+func (c *external) generatePolicyDocument(cr *policyv1beta1.Policy) (string, error) {
+	return c.generatePolicyDocumentV1Beta1(cr)
+}
+
+func (c *external) getBucketNameFromPolicy(cr *policyv1beta1.Policy) (string, error) {
+	return c.getBucketNameFromPolicyV1Beta1(cr)
+}
+
+func (c *external) getPolicyName(cr *policyv1beta1.Policy) string {
+	return c.getPolicyNameV1Beta1(cr)
+}
+
 func (c *external) isPolicyUpToDate(current, desired string) bool {
 	// Normalize JSON for comparison
 	var currentMap, desiredMap map[string]interface{}

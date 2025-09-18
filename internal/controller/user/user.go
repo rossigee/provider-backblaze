@@ -82,11 +82,22 @@ func equalStringSlices(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
 	}
-	for i, v := range a {
-		if v != b[i] {
+
+	// Create a map to count occurrences in slice a
+	counts := make(map[string]int)
+	for _, v := range a {
+		counts[v]++
+	}
+
+	// Check that slice b has the same elements with same counts
+	for _, v := range b {
+		count, exists := counts[v]
+		if !exists || count == 0 {
 			return false
 		}
+		counts[v]--
 	}
+
 	return true
 }
 
