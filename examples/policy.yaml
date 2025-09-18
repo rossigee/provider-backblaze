@@ -1,7 +1,8 @@
-apiVersion: policy.backblaze.crossplane.io/v1
+apiVersion: policy.backblaze.m.crossplane.io/v1beta1
 kind: Policy
 metadata:
   name: my-bucket-allow-all-policy
+  namespace: default
 spec:
   forProvider:
     # Simple approach: Allow all operations for a specific bucket
@@ -21,10 +22,11 @@ spec:
 
 ---
 # Advanced example with raw S3-compatible policy
-apiVersion: policy.backblaze.crossplane.io/v1
+apiVersion: policy.backblaze.m.crossplane.io/v1beta1
 kind: Policy
 metadata:
   name: my-bucket-read-only-policy
+  namespace: default
 spec:
   forProvider:
     # Advanced approach: Raw S3-compatible policy document
@@ -58,10 +60,11 @@ spec:
 
 ---
 # Example with specific principal and conditions
-apiVersion: policy.backblaze.crossplane.io/v1
+apiVersion: policy.backblaze.m.crossplane.io/v1beta1
 kind: Policy
 metadata:
   name: my-bucket-conditional-policy
+  namespace: default
 spec:
   forProvider:
     rawPolicy: |

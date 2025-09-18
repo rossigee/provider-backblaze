@@ -1,7 +1,8 @@
-apiVersion: bucket.backblaze.crossplane.io/v1
+apiVersion: bucket.backblaze.m.crossplane.io/v1beta1
 kind: Bucket
 metadata:
   name: my-storage-bucket
+  namespace: default
 spec:
   forProvider:
     # Bucket name - must be globally unique across all Backblaze B2

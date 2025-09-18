@@ -27,9 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 
-	// v1 APIs (cluster-scoped)
-
-	// v1beta1 APIs (namespaced)
+	// v1beta1 APIs (namespaced - Crossplane v2 only)
 	bucketv1beta1 "github.com/rossigee/provider-backblaze/apis/bucket/v1beta1"
 	userv1beta1 "github.com/rossigee/provider-backblaze/apis/user/v1beta1"
 	policyv1beta1 "github.com/rossigee/provider-backblaze/apis/policy/v1beta1"
@@ -37,28 +35,20 @@ import (
 	apisv1beta1 "github.com/rossigee/provider-backblaze/apis/v1beta1"
 )
 
-// TestV2APICompatibility validates that both v1 and v1beta1 APIs are properly registered
+// TestV2APICompatibility validates that v1beta1 namespaced APIs are properly registered
 func TestV2APICompatibility(t *testing.T) {
 	scheme := runtime.NewScheme()
 
-	// Register all API versions
-	require.NoError(t, bucketv1.SchemeBuilder.AddToScheme(scheme))
-	require.NoError(t, userv1.SchemeBuilder.AddToScheme(scheme))
-	require.NoError(t, policyv1.SchemeBuilder.AddToScheme(scheme))
+	// Register v1beta1 namespaced APIs only
 	require.NoError(t, bucketv1beta1.SchemeBuilder.AddToScheme(scheme))
 	require.NoError(t, userv1beta1.SchemeBuilder.AddToScheme(scheme))
 	require.NoError(t, policyv1beta1.SchemeBuilder.AddToScheme(scheme))
 	require.NoError(t, apisv1beta1.SchemeBuilder.AddToScheme(scheme))
 
-	// Test that all types can be resolved
+	// Test that all v1beta1 types can be resolved
 	gvks := scheme.AllKnownTypes()
 
-	// v1 APIs (cluster-scoped)
-	assert.Contains(t, gvks, bucketv1.BucketGroupVersionKind, "v1 Bucket GVK should be registered")
-	assert.Contains(t, gvks, userv1.UserGroupVersionKind, "v1 User GVK should be registered")
-	assert.Contains(t, gvks, policyv1.PolicyGroupVersionKind, "v1 Policy GVK should be registered")
-
-	// v1beta1 APIs (namespaced)
+	// v1beta1 APIs (namespaced - Crossplane v2 only)
 	assert.Contains(t, gvks, bucketv1beta1.BucketGroupVersionKind, "v1beta1 Bucket GVK should be registered")
 	assert.Contains(t, gvks, userv1beta1.UserGroupVersionKind, "v1beta1 User GVK should be registered")
 	assert.Contains(t, gvks, policyv1beta1.PolicyGroupVersionKind, "v1beta1 Policy GVK should be registered")

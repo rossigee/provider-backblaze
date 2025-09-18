@@ -1,7 +1,8 @@
-apiVersion: user.backblaze.crossplane.io/v1
+apiVersion: user.backblaze.m.crossplane.io/v1beta1
 kind: User
 metadata:
   name: my-app-key
+  namespace: default
 spec:
   forProvider:
     # Human-readable name for the application key
