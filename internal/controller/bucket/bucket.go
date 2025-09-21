@@ -144,11 +144,7 @@ func (r *BucketReconciler) getBackblazeClient(ctx context.Context, bucket *backb
 	}
 
 	pc := &apisv1beta1.ProviderConfig{}
-	pcNamespace := "default"
-	if bucket.GetProviderConfigReference().Namespace != "" {
-		pcNamespace = bucket.GetProviderConfigReference().Namespace
-	}
-	if err := r.Client.Get(ctx, types.NamespacedName{Name: bucket.GetProviderConfigReference().Name, Namespace: pcNamespace}, pc); err != nil {
+	if err := r.Client.Get(ctx, types.NamespacedName{Name: bucket.GetProviderConfigReference().Name, Namespace: "crossplane-system"}, pc); err != nil {
 		return nil, errors.Wrap(err, errGetPC)
 	}
 
