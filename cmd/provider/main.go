@@ -19,6 +19,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -34,6 +35,7 @@ import (
 	"github.com/rossigee/provider-backblaze/apis"
 	backblazecontroller "github.com/rossigee/provider-backblaze/internal/controller"
 	"github.com/rossigee/provider-backblaze/internal/features"
+	"github.com/rossigee/provider-backblaze/internal/version"
 )
 
 func main() {
@@ -53,22 +55,39 @@ func main() {
 
 	zl := zap.New(zap.UseDevMode(*debug))
 	log := logging.NewLogrLogger(zl.WithName("provider-backblaze"))
+
+	// Always set the controller-runtime logger to prevent logging errors
+	// Use info level for non-debug mode to reduce verbosity
 	if *debug {
-		// The controller-runtime runs with a no-op logger by default. It is
-		// *very* verbose even at info level, so we only provide it a real
-		// logger when we're running in debug mode.
 		ctrl.SetLogger(zl)
+	} else {
+		// Set logger with higher level to reduce verbosity in production
+		ctrl.SetLogger(zl.V(1))
 	}
 
 	// currently, we configure the jitter to be the 5% of the poll interval
 	pollJitter := time.Duration(float64(*pollInterval) * 0.05)
-	log.Debug("Starting", "sync-interval", syncInterval.String(), "poll-interval", pollInterval.String(), "poll-jitter", pollJitter, "max-reconcile-rate", *maxReconcileRate)
+	// Log startup information with build and configuration details
+	log.Info("Provider starting up",
+		"provider", "provider-backblaze",
+		"version", version.Version,
+		"go-version", runtime.Version(),
+		"platform", runtime.GOOS+"/"+runtime.GOARCH,
+		"sync-interval", syncInterval.String(),
+		"poll-interval", pollInterval.String(),
+		"poll-jitter", pollJitter,
+		"max-reconcile-rate", *maxReconcileRate,
+		"leader-election", *leaderElection,
+		"debug-mode", *debug)
+
+	log.Debug("Detailed startup configuration",
+		"sync-interval", syncInterval.String(),
+		"poll-interval", pollInterval.String(),
+		"poll-jitter", pollJitter,
+		"max-reconcile-rate", *maxReconcileRate)
 
 	cfg, err := ctrl.GetConfig()
 	kingpin.FatalIfError(err, "Cannot get API server rest config")
-
-	// Get a config to talk to the apiserver
-	log.Info("Starting", "sync-period", syncInterval.String())
 
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
 		LeaderElection:   *leaderElection,

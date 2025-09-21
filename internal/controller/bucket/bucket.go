@@ -18,19 +18,20 @@ package bucket
 
 import (
 	"context"
-	"fmt"
+	"time"
 
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
-	"github.com/crossplane/crossplane-runtime/v2/pkg/event"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
-	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
-	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
-	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
+	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 
 	backblazev1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1"
 	apisv1beta1 "github.com/rossigee/provider-backblaze/apis/v1beta1"
@@ -51,205 +52,116 @@ const (
 
 // SetupBucket adds a controller that reconciles Bucket managed resources.
 func SetupBucket(mgr ctrl.Manager, o controller.Options) error {
-	name := managed.ControllerName(backblazev1.BucketKind)
-
-	r := managed.NewReconciler(mgr,
-		resource.ManagedKind(backblazev1.BucketGroupVersionKind),
-		managed.WithExternalConnecter(&connector{
-			kube:         mgr.GetClient(),
-			usage:        resource.TrackerFn(func(ctx context.Context, mg resource.Managed) error { return nil }),
-			newServiceFn: clients.NewBackblazeClient,
-		}),
-		managed.WithLogger(o.Logger.WithValues("controller", name)),
-		managed.WithPollInterval(o.PollInterval),
-		managed.WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))))
+	r := &BucketReconciler{
+		Client: mgr.GetClient(),
+	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		Named(name).
-		WithOptions(o.ForControllerRuntime()).
-		WithEventFilter(resource.DesiredStateChanged()).
+		Named("bucket-controller").
 		For(&backblazev1.Bucket{}).
-		Complete(ratelimiter.NewReconciler(name, r, o.GlobalRateLimiter))
+		Complete(r)
 }
 
 
-// connector and external implementations for namespaced resources
-
-// A connector is expected to produce an ExternalClient when its Connect method
-// is called.
-type connector struct {
-	kube         client.Client
-	usage        resource.Tracker
-	newServiceFn func(config clients.Config) (*clients.BackblazeClient, error)
+// BucketReconciler reconciles a Bucket object
+type BucketReconciler struct {
+	Client client.Client
 }
 
-// Connect produces an ExternalClient for v1beta1 Bucket resources.
-func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.ExternalClient, error) {
-	cr, ok := mg.(*backblazev1.Bucket)
-	if !ok {
-		return nil, errors.New(errNotBucket)
+// Reconcile is part of the main kubernetes reconciliation loop which aims to
+// move the current state of the cluster closer to the desired state.
+func (r *BucketReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
+	logger := log.FromContext(ctx).WithValues("bucket", req.NamespacedName)
+
+	// Fetch the Bucket instance
+	bucket := &backblazev1.Bucket{}
+	err := r.Client.Get(ctx, req.NamespacedName, bucket)
+	if err != nil {
+		if client.IgnoreNotFound(err) == nil {
+			// Object not found, return without error
+			logger.Info("Bucket resource not found, likely deleted")
+			return reconcile.Result{}, nil
+		}
+		logger.Error(err, "Failed to get Bucket")
+		return reconcile.Result{}, err
 	}
 
-	if err := c.usage.Track(ctx, mg); err != nil {
-		return nil, errors.Wrap(err, errTrackPCUsage)
+	logger.Info("Reconciling bucket", "bucketName", bucket.Spec.ForProvider.BucketName)
+
+	// Get provider config and create client
+	service, err := r.getBackblazeClient(ctx, bucket)
+	if err != nil {
+		logger.Error(err, "Failed to create Backblaze client")
+		r.setCondition(bucket, xpv1.TypeReady, "False", "ClientError", err.Error())
+		return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, bucket)
 	}
 
-	if cr.GetProviderConfigReference() == nil {
+	// Check if bucket exists
+	bucketName := bucket.GetBucketName()
+	exists, err := service.BucketExists(ctx, bucketName)
+	if err != nil {
+		logger.Error(err, "Failed to check bucket existence")
+		r.setCondition(bucket, xpv1.TypeReady, "False", "CheckError", err.Error())
+		return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, bucket)
+	}
+
+	if !exists {
+		// Create bucket
+		logger.Info("Creating bucket", "bucketName", bucketName)
+		bucketType := bucket.Spec.ForProvider.BucketType
+		if bucketType == "" {
+			bucketType = "allPrivate"
+		}
+
+		err = service.CreateBucket(ctx, bucketName, bucketType, bucket.Spec.ForProvider.Region)
+		if err != nil {
+			logger.Error(err, "Failed to create bucket")
+			r.setCondition(bucket, xpv1.TypeReady, "False", "CreateError", err.Error())
+			return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, bucket)
+		}
+
+		// Set external name
+		meta.SetExternalName(bucket, bucketName)
+	}
+
+	// Update status
+	bucket.Status.AtProvider.BucketName = bucketName
+	r.setCondition(bucket, xpv1.TypeReady, "True", "Available", "Bucket is ready")
+
+	// Update the resource
+	if err := r.Client.Status().Update(ctx, bucket); err != nil {
+		logger.Error(err, "Failed to update bucket status")
+		return reconcile.Result{}, err
+	}
+
+	logger.Info("Successfully reconciled bucket")
+	return reconcile.Result{RequeueAfter: 5 * time.Minute}, nil
+}
+
+func (r *BucketReconciler) getBackblazeClient(ctx context.Context, bucket *backblazev1.Bucket) (*clients.BackblazeClient, error) {
+	if bucket.GetProviderConfigReference() == nil {
 		return nil, errors.New("no providerConfigRef provided")
 	}
 
 	pc := &apisv1beta1.ProviderConfig{}
-	if err := c.kube.Get(ctx, types.NamespacedName{Name: cr.GetProviderConfigReference().Name}, pc); err != nil {
+	if err := r.Client.Get(ctx, types.NamespacedName{Name: bucket.GetProviderConfigReference().Name}, pc); err != nil {
 		return nil, errors.Wrap(err, errGetPC)
 	}
 
-	cfg, err := clients.GetProviderConfig(ctx, c.kube, pc)
+	cfg, err := clients.GetProviderConfig(ctx, r.Client, pc)
 	if err != nil {
 		return nil, errors.Wrap(err, errGetCreds)
 	}
 
-	service, err := c.newServiceFn(*cfg)
-	if err != nil {
-		return nil, errors.Wrap(err, errNewClient)
-	}
-
-	return &external{service: service}, nil
+	return clients.NewBackblazeClient(*cfg)
 }
 
-// An external observes, then either creates, updates, or deletes an
-// external resource to ensure it reflects the managed resource's desired state.
-type external struct {
-	service *clients.BackblazeClient
-}
-
-func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) {
-	cr, ok := mg.(*backblazev1.Bucket)
-	if !ok {
-		return managed.ExternalObservation{}, errors.New(errNotBucket)
-	}
-
-	bucketName := cr.GetBucketName()
-
-	exists, err := c.service.BucketExists(ctx, bucketName)
-	if err != nil {
-		return managed.ExternalObservation{}, errors.Wrap(err, errObserveBucket)
-	}
-
-	if !exists {
-		return managed.ExternalObservation{
-			ResourceExists: false,
-		}, nil
-	}
-
-	// Update status with current state
-	cr.Status.AtProvider.BucketName = bucketName
-
-	// Get bucket location/region
-	location, err := c.service.GetBucketLocation(ctx, bucketName)
-	if err != nil {
-		// Don't fail observation if we can't get location
-		location = cr.Spec.ForProvider.Region
-	}
-
-	// Check if the bucket configuration matches desired state
-	upToDate := location == "" || location == cr.Spec.ForProvider.Region
-
-	// Set external name if not already set
-	if meta.GetExternalName(cr) == "" {
-		meta.SetExternalName(cr, bucketName)
-	}
-
-	return managed.ExternalObservation{
-		ResourceExists:   true,
-		ResourceUpToDate: upToDate,
-	}, nil
-}
-
-func (c *external) Create(ctx context.Context, mg resource.Managed) (managed.ExternalCreation, error) {
-	cr, ok := mg.(*backblazev1.Bucket)
-	if !ok {
-		return managed.ExternalCreation{}, errors.New(errNotBucket)
-	}
-
-	bucketName := cr.GetBucketName()
-	bucketType := cr.Spec.ForProvider.BucketType
-	if bucketType == "" {
-		bucketType = "allPrivate"
-	}
-	region := cr.Spec.ForProvider.Region
-
-	err := c.service.CreateBucket(ctx, bucketName, bucketType, region)
-	if err != nil {
-		return managed.ExternalCreation{}, errors.Wrap(err, errCreateBucket)
-	}
-
-	// Set external name
-	meta.SetExternalName(cr, bucketName)
-
-	// Provide connection details for the bucket
-	connectionDetails := managed.ConnectionDetails{
-		"bucketName":        []byte(bucketName),
-		"region":           []byte(region),
-		"endpoint":         []byte(fmt.Sprintf("s3.%s.backblazeb2.com", region)),
-		"applicationKeyId": []byte(c.service.ApplicationKeyID),
-		"applicationKey":   []byte(c.service.ApplicationKey),
-	}
-
-	return managed.ExternalCreation{
-		ConnectionDetails: connectionDetails,
-	}, nil
-}
-
-func (c *external) Update(ctx context.Context, mg resource.Managed) (managed.ExternalUpdate, error) {
-	cr, ok := mg.(*backblazev1.Bucket)
-	if !ok {
-		return managed.ExternalUpdate{}, errors.New(errNotBucket)
-	}
-
-	// Most bucket properties cannot be updated after creation in Backblaze B2
-	// But we still provide updated connection details
-	bucketName := cr.GetBucketName()
-	region := cr.Spec.ForProvider.Region
-
-	connectionDetails := managed.ConnectionDetails{
-		"bucketName":        []byte(bucketName),
-		"region":           []byte(region),
-		"endpoint":         []byte(fmt.Sprintf("s3.%s.backblazeb2.com", region)),
-		"applicationKeyId": []byte(c.service.ApplicationKeyID),
-		"applicationKey":   []byte(c.service.ApplicationKey),
-	}
-
-	return managed.ExternalUpdate{
-		ConnectionDetails: connectionDetails,
-	}, nil
-}
-
-func (c *external) Delete(ctx context.Context, mg resource.Managed) (managed.ExternalDelete, error) {
-	cr, ok := mg.(*backblazev1.Bucket)
-	if !ok {
-		return managed.ExternalDelete{}, errors.New(errNotBucket)
-	}
-
-	bucketName := cr.GetBucketName()
-
-	// Handle deletion policy
-	if cr.Spec.ForProvider.BucketDeletionPolicy == backblazev1.DeleteAll {
-		// Delete all objects first
-		if err := c.service.DeleteAllObjectsInBucket(ctx, bucketName); err != nil {
-			return managed.ExternalDelete{}, errors.Wrap(err, "cannot delete objects in bucket")
-		}
-	}
-
-	// Delete the bucket
-	err := c.service.DeleteBucket(ctx, bucketName)
-	if err != nil {
-		return managed.ExternalDelete{}, errors.Wrap(err, errDeleteBucket)
-	}
-
-	return managed.ExternalDelete{}, nil
-}
-
-func (c *external) Disconnect(ctx context.Context) error {
-	// No special disconnect logic needed for Backblaze B2 client
-	return nil
+func (r *BucketReconciler) setCondition(bucket *backblazev1.Bucket, conditionType xpv1.ConditionType, status, reason, message string) {
+	bucket.SetConditions(xpv1.Condition{
+		Type:               conditionType,
+		Status:             corev1.ConditionStatus(status),
+		LastTransitionTime: metav1.NewTime(time.Now()),
+		Reason:             xpv1.ConditionReason(reason),
+		Message:            message,
+	})
 }
