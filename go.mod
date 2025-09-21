@@ -8,7 +8,6 @@ require (
 	github.com/crossplane/crossplane-runtime/v2 v2.0.0
 	github.com/crossplane/crossplane-tools v0.0.0-20250731192036-00d407d8b7ec
 	github.com/pkg/errors v0.9.1
-	github.com/stretchr/testify v1.10.0
 	k8s.io/api v0.33.0
 	k8s.io/apimachinery v0.33.0
 	sigs.k8s.io/controller-runtime v0.19.0

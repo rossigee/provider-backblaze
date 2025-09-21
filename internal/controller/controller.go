@@ -23,20 +23,12 @@ import (
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 
 	"github.com/rossigee/provider-backblaze/internal/controller/bucket"
-	"github.com/rossigee/provider-backblaze/internal/controller/policy"
-	"github.com/rossigee/provider-backblaze/internal/controller/user"
 )
 
 // Setup sets up all controllers for the Backblaze provider.
 func Setup(mgr ctrl.Manager, o controller.Options) error {
-	// v1beta1 controllers (namespaced - Crossplane v2 only)
+	// v1 controllers (cluster-scoped - Crossplane v2)
 	if err := bucket.SetupBucket(mgr, o); err != nil {
-		return err
-	}
-	if err := user.SetupUser(mgr, o); err != nil {
-		return err
-	}
-	if err := policy.SetupPolicy(mgr, o); err != nil {
 		return err
 	}
 	return nil

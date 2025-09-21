@@ -23,7 +23,7 @@ import (
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	bucketv1beta1 "github.com/rossigee/provider-backblaze/apis/bucket/v1beta1"
+	backblazev1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1"
 )
 
 // BackblazeClientInterface defines the interface for Backblaze client operations
@@ -85,7 +85,7 @@ type testExternal struct {
 }
 
 func (c *testExternal) Observe(ctx context.Context, mg interface{}) (interface{}, error) {
-	cr, ok := mg.(*bucketv1beta1.Bucket)
+	cr, ok := mg.(*backblazev1.Bucket)
 	if !ok {
 		return nil, errors.New(errNotBucket)
 	}
@@ -124,7 +124,7 @@ func (c *testExternal) Observe(ctx context.Context, mg interface{}) (interface{}
 }
 
 func (c *testExternal) Create(ctx context.Context, mg interface{}) (interface{}, error) {
-	cr, ok := mg.(*bucketv1beta1.Bucket)
+	cr, ok := mg.(*backblazev1.Bucket)
 	if !ok {
 		return nil, errors.New(errNotBucket)
 	}
@@ -145,7 +145,7 @@ func (c *testExternal) Create(ctx context.Context, mg interface{}) (interface{},
 }
 
 func (c *testExternal) Delete(ctx context.Context, mg interface{}) (interface{}, error) {
-	cr, ok := mg.(*bucketv1beta1.Bucket)
+	cr, ok := mg.(*backblazev1.Bucket)
 	if !ok {
 		return nil, errors.New(errNotBucket)
 	}
@@ -153,7 +153,7 @@ func (c *testExternal) Delete(ctx context.Context, mg interface{}) (interface{},
 	bucketName := cr.GetBucketName()
 
 	// Handle deletion policy
-	if cr.Spec.ForProvider.BucketDeletionPolicy == bucketv1beta1.DeleteAll {
+	if cr.Spec.ForProvider.BucketDeletionPolicy == backblazev1.DeleteAll {
 		// Delete all objects first
 		if err := c.service.DeleteAllObjectsInBucket(ctx, bucketName); err != nil {
 			return nil, errors.Wrap(err, "cannot delete objects in bucket")
@@ -170,7 +170,7 @@ func (c *testExternal) Delete(ctx context.Context, mg interface{}) (interface{},
 }
 
 func (c *testExternal) Update(ctx context.Context, mg interface{}) (interface{}, error) {
-	_, ok := mg.(*bucketv1beta1.Bucket)
+	_, ok := mg.(*backblazev1.Bucket)
 	if !ok {
 		return nil, errors.New(errNotBucket)
 	}
@@ -190,19 +190,19 @@ func (c *testExternal) Disconnect(ctx context.Context) error {
 func TestExternalObserve(t *testing.T) {
 	tests := []struct {
 		name           string
-		bucket         *bucketv1beta1.Bucket
+		bucket         *backblazev1.Bucket
 		mockBehavior   func(*MockBackblazeClient)
 		expectedExists bool
 		expectedError  bool
 	}{
 		{
 			name: "bucket exists and up to date",
-			bucket: &bucketv1beta1.Bucket{
+			bucket: &backblazev1.Bucket{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-bucket",
 				},
-				Spec: bucketv1beta1.BucketSpec{
-					ForProvider: bucketv1beta1.BucketParameters{
+				Spec: backblazev1.BucketSpec{
+					ForProvider: backblazev1.BucketParameters{
 						BucketName: "test-bucket",
 						Region:     "us-west-001",
 					},
@@ -221,12 +221,12 @@ func TestExternalObserve(t *testing.T) {
 		},
 		{
 			name: "bucket does not exist",
-			bucket: &bucketv1beta1.Bucket{
+			bucket: &backblazev1.Bucket{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-bucket",
 				},
-				Spec: bucketv1beta1.BucketSpec{
-					ForProvider: bucketv1beta1.BucketParameters{
+				Spec: backblazev1.BucketSpec{
+					ForProvider: backblazev1.BucketParameters{
 						BucketName: "test-bucket",
 						Region:     "us-west-001",
 					},
@@ -242,12 +242,12 @@ func TestExternalObserve(t *testing.T) {
 		},
 		{
 			name: "error checking bucket existence",
-			bucket: &bucketv1beta1.Bucket{
+			bucket: &backblazev1.Bucket{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-bucket",
 				},
-				Spec: bucketv1beta1.BucketSpec{
-					ForProvider: bucketv1beta1.BucketParameters{
+				Spec: backblazev1.BucketSpec{
+					ForProvider: backblazev1.BucketParameters{
 						BucketName: "test-bucket",
 						Region:     "us-west-001",
 					},
@@ -302,18 +302,18 @@ func TestExternalObserve(t *testing.T) {
 func TestExternalCreate(t *testing.T) {
 	tests := []struct {
 		name          string
-		bucket        *bucketv1beta1.Bucket
+		bucket        *backblazev1.Bucket
 		mockBehavior  func(*MockBackblazeClient)
 		expectedError bool
 	}{
 		{
 			name: "successful creation",
-			bucket: &bucketv1beta1.Bucket{
+			bucket: &backblazev1.Bucket{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-bucket",
 				},
-				Spec: bucketv1beta1.BucketSpec{
-					ForProvider: bucketv1beta1.BucketParameters{
+				Spec: backblazev1.BucketSpec{
+					ForProvider: backblazev1.BucketParameters{
 						BucketName: "test-bucket",
 						BucketType: "allPrivate",
 						Region:     "us-west-001",
@@ -338,12 +338,12 @@ func TestExternalCreate(t *testing.T) {
 		},
 		{
 			name: "creation fails",
-			bucket: &bucketv1beta1.Bucket{
+			bucket: &backblazev1.Bucket{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-bucket",
 				},
-				Spec: bucketv1beta1.BucketSpec{
-					ForProvider: bucketv1beta1.BucketParameters{
+				Spec: backblazev1.BucketSpec{
+					ForProvider: backblazev1.BucketParameters{
 						BucketName: "test-bucket",
 						Region:     "us-west-001",
 					},
@@ -358,12 +358,12 @@ func TestExternalCreate(t *testing.T) {
 		},
 		{
 			name: "default bucket type",
-			bucket: &bucketv1beta1.Bucket{
+			bucket: &backblazev1.Bucket{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-bucket",
 				},
-				Spec: bucketv1beta1.BucketSpec{
-					ForProvider: bucketv1beta1.BucketParameters{
+				Spec: backblazev1.BucketSpec{
+					ForProvider: backblazev1.BucketParameters{
 						BucketName: "test-bucket",
 						Region:     "us-west-001",
 						// No bucket type specified
@@ -410,18 +410,18 @@ func TestExternalCreate(t *testing.T) {
 func TestExternalDelete(t *testing.T) {
 	tests := []struct {
 		name          string
-		bucket        *bucketv1beta1.Bucket
+		bucket        *backblazev1.Bucket
 		mockBehavior  func(*MockBackblazeClient)
 		expectedError bool
 	}{
 		{
 			name: "successful deletion without objects",
-			bucket: &bucketv1beta1.Bucket{
+			bucket: &backblazev1.Bucket{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-bucket",
 				},
-				Spec: bucketv1beta1.BucketSpec{
-					ForProvider: bucketv1beta1.BucketParameters{
+				Spec: backblazev1.BucketSpec{
+					ForProvider: backblazev1.BucketParameters{
 						BucketName: "test-bucket",
 						Region:     "us-west-001",
 					},
@@ -439,15 +439,15 @@ func TestExternalDelete(t *testing.T) {
 		},
 		{
 			name: "successful deletion with objects (DeleteAll policy)",
-			bucket: &bucketv1beta1.Bucket{
+			bucket: &backblazev1.Bucket{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-bucket",
 				},
-				Spec: bucketv1beta1.BucketSpec{
-					ForProvider: bucketv1beta1.BucketParameters{
+				Spec: backblazev1.BucketSpec{
+					ForProvider: backblazev1.BucketParameters{
 						BucketName:           "test-bucket",
 						Region:               "us-west-001",
-						BucketDeletionPolicy: bucketv1beta1.DeleteAll,
+						BucketDeletionPolicy: backblazev1.DeleteAll,
 					},
 				},
 			},
@@ -466,12 +466,12 @@ func TestExternalDelete(t *testing.T) {
 		},
 		{
 			name: "deletion fails",
-			bucket: &bucketv1beta1.Bucket{
+			bucket: &backblazev1.Bucket{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-bucket",
 				},
-				Spec: bucketv1beta1.BucketSpec{
-					ForProvider: bucketv1beta1.BucketParameters{
+				Spec: backblazev1.BucketSpec{
+					ForProvider: backblazev1.BucketParameters{
 						BucketName: "test-bucket",
 						Region:     "us-west-001",
 					},
@@ -512,12 +512,12 @@ func TestExternalDelete(t *testing.T) {
 }
 
 func TestExternalUpdate(t *testing.T) {
-	bucket := &bucketv1beta1.Bucket{
+	bucket := &backblazev1.Bucket{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-bucket",
 		},
-		Spec: bucketv1beta1.BucketSpec{
-			ForProvider: bucketv1beta1.BucketParameters{
+		Spec: backblazev1.BucketSpec{
+			ForProvider: backblazev1.BucketParameters{
 				BucketName: "test-bucket",
 				Region:     "us-west-001",
 			},

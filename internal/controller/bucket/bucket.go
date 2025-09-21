@@ -31,7 +31,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
 
-	bucketv1beta1 "github.com/rossigee/provider-backblaze/apis/bucket/v1beta1"
+	backblazev1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1"
 	apisv1beta1 "github.com/rossigee/provider-backblaze/apis/v1beta1"
 	"github.com/rossigee/provider-backblaze/internal/clients"
 )
@@ -50,10 +50,10 @@ const (
 
 // SetupBucket adds a controller that reconciles Bucket managed resources.
 func SetupBucket(mgr ctrl.Manager, o controller.Options) error {
-	name := managed.ControllerName(bucketv1beta1.BucketGroupKind)
+	name := managed.ControllerName(backblazev1.BucketKind)
 
 	r := managed.NewReconciler(mgr,
-		resource.ManagedKind(bucketv1beta1.BucketGroupVersionKind),
+		resource.ManagedKind(backblazev1.BucketGroupVersionKind),
 		managed.WithExternalConnecter(&connector{
 			kube:         mgr.GetClient(),
 			usage:        resource.TrackerFn(func(ctx context.Context, mg resource.Managed) error { return nil }),
@@ -67,7 +67,7 @@ func SetupBucket(mgr ctrl.Manager, o controller.Options) error {
 		Named(name).
 		WithOptions(o.ForControllerRuntime()).
 		WithEventFilter(resource.DesiredStateChanged()).
-		For(&bucketv1beta1.Bucket{}).
+		For(&backblazev1.Bucket{}).
 		Complete(ratelimiter.NewReconciler(name, r, o.GlobalRateLimiter))
 }
 
@@ -84,7 +84,7 @@ type connector struct {
 
 // Connect produces an ExternalClient for v1beta1 Bucket resources.
 func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.ExternalClient, error) {
-	cr, ok := mg.(*bucketv1beta1.Bucket)
+	cr, ok := mg.(*backblazev1.Bucket)
 	if !ok {
 		return nil, errors.New(errNotBucket)
 	}
@@ -122,7 +122,7 @@ type external struct {
 }
 
 func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) {
-	cr, ok := mg.(*bucketv1beta1.Bucket)
+	cr, ok := mg.(*backblazev1.Bucket)
 	if !ok {
 		return managed.ExternalObservation{}, errors.New(errNotBucket)
 	}
@@ -165,7 +165,7 @@ func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 }
 
 func (c *external) Create(ctx context.Context, mg resource.Managed) (managed.ExternalCreation, error) {
-	cr, ok := mg.(*bucketv1beta1.Bucket)
+	cr, ok := mg.(*backblazev1.Bucket)
 	if !ok {
 		return managed.ExternalCreation{}, errors.New(errNotBucket)
 	}
@@ -191,7 +191,7 @@ func (c *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 }
 
 func (c *external) Update(ctx context.Context, mg resource.Managed) (managed.ExternalUpdate, error) {
-	_, ok := mg.(*bucketv1beta1.Bucket)
+	_, ok := mg.(*backblazev1.Bucket)
 	if !ok {
 		return managed.ExternalUpdate{}, errors.New(errNotBucket)
 	}
@@ -203,7 +203,7 @@ func (c *external) Update(ctx context.Context, mg resource.Managed) (managed.Ext
 }
 
 func (c *external) Delete(ctx context.Context, mg resource.Managed) (managed.ExternalDelete, error) {
-	cr, ok := mg.(*bucketv1beta1.Bucket)
+	cr, ok := mg.(*backblazev1.Bucket)
 	if !ok {
 		return managed.ExternalDelete{}, errors.New(errNotBucket)
 	}
@@ -211,7 +211,7 @@ func (c *external) Delete(ctx context.Context, mg resource.Managed) (managed.Ext
 	bucketName := cr.GetBucketName()
 
 	// Handle deletion policy
-	if cr.Spec.ForProvider.BucketDeletionPolicy == bucketv1beta1.DeleteAll {
+	if cr.Spec.ForProvider.BucketDeletionPolicy == backblazev1.DeleteAll {
 		// Delete all objects first
 		if err := c.service.DeleteAllObjectsInBucket(ctx, bucketName); err != nil {
 			return managed.ExternalDelete{}, errors.Wrap(err, "cannot delete objects in bucket")

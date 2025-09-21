@@ -4,41 +4,43 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.18.0
-  name: buckets.bucket.backblaze.m.crossplane.io
+  name: buckets.backblaze.crossplane.io
 spec:
-  group: bucket.backblaze.m.crossplane.io
+  group: backblaze.crossplane.io
   names:
     categories:
     - crossplane
+    - managed
     - backblaze
     kind: Bucket
     listKind: BucketList
     plural: buckets
     singular: bucket
-  scope: Namespaced
+  scope: Cluster
   versions:
   - additionalPrinterColumns:
     - jsonPath: .status.conditions[?(@.type=='Ready')].status
-      name: Ready
+      name: READY
       type: string
     - jsonPath: .status.conditions[?(@.type=='Synced')].status
-      name: Synced
+      name: SYNCED
       type: string
     - jsonPath: .metadata.annotations.crossplane\.io/external-name
-      name: External Name
+      name: EXTERNAL NAME
       type: string
     - jsonPath: .metadata.creationTimestamp
-      name: Age
+      name: AGE
       type: date
-    - jsonPath: .status.atProvider.bucketName
-      name: Bucket Name
+    - jsonPath: .spec.forProvider.bucketName
+      name: BUCKET NAME
       type: string
     - jsonPath: .spec.forProvider.region
-      name: Region
+      name: REGION
       type: string
-    name: v1beta1
+    name: v1
     schema:
       openAPIV3Schema:
+        description: A Bucket is an example API type.
         properties:
           apiVersion:
             description: |-
@@ -55,9 +57,8 @@ spec:
               In CamelCase.
               More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
-          metadata:
-            type: object
           spec:
+            description: A BucketSpec defines the desired state of a Bucket.
             properties:
               deletionPolicy:
                 default: Delete
@@ -74,83 +75,69 @@ spec:
                 - Delete
                 type: string
               forProvider:
+                description: BucketParameters are the configurable fields of a Bucket.
                 properties:
                   bucketDeletionPolicy:
-                    description: |-
-                      BucketDeletionPolicy determines how buckets should be deleted when Bucket is deleted.
-                       `DeleteIfEmpty` only deletes the bucket if the bucket is empty.
-                       `DeleteAll` recursively deletes all objects in the bucket and then removes it.
-                      To skip deletion of the bucket (orphan it) set `spec.deletionPolicy=Orphan`.
+                    description: BucketDeletionPolicy defines how to handle bucket
+                      deletion.
+                    enum:
+                    - DeleteIfEmpty
+                    - DeleteAll
                     type: string
                   bucketName:
-                    description: |-
-                      BucketName is the name of the bucket to create.
-                      Defaults to `metadata.name` if unset.
-                      Cannot be changed after bucket is created.
-                      Name must be acceptable by the S3 protocol, which follows RFC 1123.
-                      Be aware that Backblaze B2 requires unique bucket names across the entire platform.
+                    description: BucketName is the name of the bucket. Must be globally
+                      unique.
                     type: string
                   bucketType:
                     default: allPrivate
-                    description: |-
-                      BucketType defines the access level for the bucket.
-                      allPrivate: Files in this bucket are private and require authorization to access
-                      allPublic: Files in this bucket can be downloaded by anybody
+                    description: BucketType defines the access permissions for the
+                      bucket.
                     enum:
-                    - allPrivate
                     - allPublic
+                    - allPrivate
                     type: string
                   corsRules:
-                    description: CorsRules defines Cross-Origin Resource Sharing rules
-                      for the bucket.
+                    description: CorsRules define CORS configuration for the bucket.
                     items:
-                      description: CorsRule defines Cross-Origin Resource Sharing
-                        rules.
+                      description: CORSRule defines CORS configuration for a bucket.
                       properties:
                         allowedHeaders:
-                          description: AllowedHeaders lists the headers that can be
-                            used in requests.
+                          description: AllowedHeaders specifies the allowed headers.
                           items:
                             type: string
                           type: array
-                        allowedOperations:
-                          description: |-
-                            AllowedOperations lists the operations that are allowed.
-                            Valid values: b2_download_file_by_id, b2_download_file_by_name, b2_upload_file, b2_upload_part
+                        allowedMethods:
+                          description: AllowedMethods specifies the allowed HTTP methods.
                           items:
                             type: string
                           type: array
                         allowedOrigins:
-                          description: AllowedOrigins lists the origins that are allowed
-                            to make requests.
+                          description: AllowedOrigins specifies the allowed origins
+                            for CORS requests.
                           items:
                             type: string
                           type: array
                         corsRuleName:
-                          description: CorsRuleName is a name for this rule (for your
-                            reference).
+                          description: CorsRuleName is the name for this CORS rule.
                           type: string
                         exposeHeaders:
-                          description: ExposeHeaders lists headers that browsers are
-                            allowed to access.
+                          description: ExposeHeaders specifies headers that browsers
+                            are allowed to access.
                           items:
                             type: string
                           type: array
                         maxAgeSeconds:
                           description: MaxAgeSeconds specifies how long browsers can
-                            cache the CORS response.
+                            cache preflight responses.
                           type: integer
                       required:
-                      - allowedHeaders
-                      - allowedOperations
+                      - allowedMethods
                       - allowedOrigins
                       - corsRuleName
                       type: object
                     type: array
                   lifecycleRules:
-                    description: |-
-                      LifecycleRules defines lifecycle rules for automatic file management.
-                      This controls when files are automatically hidden or deleted.
+                    description: LifecycleRules define automatic file lifecycle management.
                     items:
                       description: LifecycleRule defines automatic file lifecycle
                         management.
@@ -171,14 +158,11 @@ spec:
                     type: array
                   region:
                     default: us-west-001
-                    description: |-
-                      Region is the name of the region where the bucket shall be created.
-                      The region must be available in the Backblaze B2 service.
-                      Cannot be changed after bucket is created.
-                      Common regions: us-west-001, us-west-002, eu-central-003
+                    description: Region is the Backblaze B2 region where the bucket
+                      should be created.
                     type: string
                 required:
-                - region
+                - bucketName
                 type: object
               managementPolicies:
                 default:
@@ -263,21 +247,26 @@ spec:
                 - name
                 - namespace
                 type: object
+            required:
+            - forProvider
             type: object
           status:
+            description: A BucketStatus represents the observed state of a Bucket.
             properties:
               atProvider:
+                description: BucketObservation are the observable fields of a Bucket.
                 properties:
-                  bucketID:
-                    description: BucketID is the unique identifier assigned by Backblaze
-                      B2.
+                  accountId:
+                    description: AccountID is the account that owns the bucket.
+                    type: string
+                  bucketId:
+                    description: BucketID is the unique identifier for the bucket.
                     type: string
                   bucketName:
-                    description: BucketName is the name of the actual bucket.
+                    description: BucketName is the name of the bucket.
                     type: string
-                  bucketType:
-                    description: BucketType reflects the current access level of the
-                      bucket.
+                  region:
+                    description: Region is the region where the bucket is located.
                     type: string
                 type: object
               conditions:

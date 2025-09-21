@@ -77,7 +77,6 @@ type Config struct {
 	ApplicationKeyID string
 	ApplicationKey   string
 	Region           string
-	EndpointURL      string
 }
 
 // NewBackblazeClient creates a new Backblaze B2 client using S3-compatible API
@@ -90,10 +89,7 @@ func NewBackblazeClient(cfg Config) (*BackblazeClient, error) {
 		cfg.Region = DefaultRegion
 	}
 
-	endpoint := cfg.EndpointURL
-	if endpoint == "" {
-		endpoint = fmt.Sprintf(DefaultEndpointFormat, cfg.Region)
-	}
+	endpoint := fmt.Sprintf(DefaultEndpointFormat, cfg.Region)
 
 	awsConfig := &aws.Config{
 		Credentials: credentials.NewStaticCredentials(
@@ -124,20 +120,19 @@ func NewBackblazeClient(cfg Config) (*BackblazeClient, error) {
 // GetProviderConfig extracts Backblaze configuration from a ProviderConfig
 func GetProviderConfig(ctx context.Context, c client.Client, pc *v1beta1.ProviderConfig) (*Config, error) {
 	cfg := &Config{
-		Region:      pc.Spec.BackblazeRegion,
-		EndpointURL: pc.Spec.EndpointURL,
+		Region: pc.Spec.BackblazeRegion,
 	}
 
 	switch pc.Spec.Credentials.Source {
 	case "Secret":
-		if pc.Spec.Credentials.APISecretRef.Name == "" {
-			return nil, errors.New("apiSecretRef.name is required when source is Secret")
+		if pc.Spec.Credentials.SecretRef == nil || pc.Spec.Credentials.SecretRef.Name == "" {
+			return nil, errors.New("secretRef.name is required when source is Secret")
 		}
 
 		secret := &corev1.Secret{}
 		if err := c.Get(ctx, client.ObjectKey{
-			Namespace: pc.Spec.Credentials.APISecretRef.Namespace,
-			Name:      pc.Spec.Credentials.APISecretRef.Name,
+			Namespace: pc.Spec.Credentials.SecretRef.Namespace,
+			Name:      pc.Spec.Credentials.SecretRef.Name,
 		}, secret); err != nil {
 			return nil, errors.Wrap(err, "failed to get credentials secret")
 		}

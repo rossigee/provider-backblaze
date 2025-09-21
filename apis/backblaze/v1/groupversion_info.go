@@ -14,7 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1beta1
+// +kubebuilder:object:generate=true
+// +groupName=backblaze.crossplane.io
+// +versionName=v1
+
+// Package v1 contains the v1 group backblaze.crossplane.io resources of provider-backblaze.
+package v1
 
 import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -24,7 +29,7 @@ import (
 // Package type metadata.
 const (
 	Group   = "backblaze.crossplane.io"
-	Version = "v1beta1"
+	Version = "v1"
 )
 
 var (
@@ -34,7 +39,3 @@ var (
 	// SchemeBuilder is used to add go types to the GroupVersionKind scheme
 	SchemeBuilder = &scheme.Builder{GroupVersion: SchemeGroupVersion}
 )
-
-func init() {
-	SchemeBuilder.Register(&ProviderConfig{}, &ProviderConfigList{})
-}

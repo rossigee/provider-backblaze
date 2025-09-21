@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package v1beta1 contains the core resources of the Backblaze provider.
+// Package v1beta1 contains the provider configuration API.
 // +kubebuilder:object:generate=true
 // +groupName=backblaze.crossplane.io
 // +versionName=v1beta1
