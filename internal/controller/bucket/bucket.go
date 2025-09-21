@@ -141,12 +141,14 @@ func (r *BucketReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 }
 
 func (r *BucketReconciler) getBackblazeClient(ctx context.Context, bucket *backblazev1.Bucket) (*clients.BackblazeClient, error) {
-	if bucket.GetProviderConfigReference() == nil {
-		return nil, errors.New("no providerConfigRef provided")
+	// Determine ProviderConfig name - use "default" if not specified
+	providerConfigName := "default"
+	if bucket.GetProviderConfigReference() != nil {
+		providerConfigName = bucket.GetProviderConfigReference().Name
 	}
 
 	pc := &apisv1beta1.ProviderConfig{}
-	if err := r.Client.Get(ctx, types.NamespacedName{Name: bucket.GetProviderConfigReference().Name, Namespace: "crossplane-system"}, pc); err != nil {
+	if err := r.Client.Get(ctx, types.NamespacedName{Name: providerConfigName, Namespace: "crossplane-system"}, pc); err != nil {
 		return nil, errors.Wrap(err, errGetPC)
 	}
 
