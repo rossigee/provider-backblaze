@@ -18,6 +18,7 @@ package bucket
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/types"
@@ -185,20 +186,41 @@ func (c *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 	// Set external name
 	meta.SetExternalName(cr, bucketName)
 
+	// Provide connection details for the bucket
+	connectionDetails := managed.ConnectionDetails{
+		"bucketName":        []byte(bucketName),
+		"region":           []byte(region),
+		"endpoint":         []byte(fmt.Sprintf("s3.%s.backblazeb2.com", region)),
+		"applicationKeyId": []byte(c.service.ApplicationKeyID),
+		"applicationKey":   []byte(c.service.ApplicationKey),
+	}
+
 	return managed.ExternalCreation{
-		ConnectionDetails: managed.ConnectionDetails{},
+		ConnectionDetails: connectionDetails,
 	}, nil
 }
 
 func (c *external) Update(ctx context.Context, mg resource.Managed) (managed.ExternalUpdate, error) {
-	_, ok := mg.(*backblazev1.Bucket)
+	cr, ok := mg.(*backblazev1.Bucket)
 	if !ok {
 		return managed.ExternalUpdate{}, errors.New(errNotBucket)
 	}
 
 	// Most bucket properties cannot be updated after creation in Backblaze B2
+	// But we still provide updated connection details
+	bucketName := cr.GetBucketName()
+	region := cr.Spec.ForProvider.Region
+
+	connectionDetails := managed.ConnectionDetails{
+		"bucketName":        []byte(bucketName),
+		"region":           []byte(region),
+		"endpoint":         []byte(fmt.Sprintf("s3.%s.backblazeb2.com", region)),
+		"applicationKeyId": []byte(c.service.ApplicationKeyID),
+		"applicationKey":   []byte(c.service.ApplicationKey),
+	}
+
 	return managed.ExternalUpdate{
-		ConnectionDetails: managed.ConnectionDetails{},
+		ConnectionDetails: connectionDetails,
 	}, nil
 }
 
