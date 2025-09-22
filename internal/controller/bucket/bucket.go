@@ -61,7 +61,7 @@ func SetupBucket(mgr ctrl.Manager, o controller.Options) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("bucket-controller").
 		For(&backblazev1.Bucket{}).
-		Watches(&apisv1beta1.ProviderConfig{}, &handler.EnqueueRequestForObject{}).
+		Watches(&apisv1beta1.ProviderConfig{}, handler.Funcs{}).
 		Complete(r)
 }
 

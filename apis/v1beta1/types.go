@@ -66,3 +66,23 @@ type ProviderConfigList struct {
 	metav1.ListMeta `json:",inline"`
 	Items           []ProviderConfig `json:"items"`
 }
+
+// +kubebuilder:object:root=true
+
+// A ProviderConfigUsage tracks that a given set of resources is using a
+// particular ProviderConfig.
+type ProviderConfigUsage struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	xpv1.ProviderConfigUsage `json:",inline"`
+}
+
+// +kubebuilder:object:root=true
+
+// ProviderConfigUsageList contains a list of ProviderConfigUsage
+type ProviderConfigUsageList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []ProviderConfigUsage `json:"items"`
+}
