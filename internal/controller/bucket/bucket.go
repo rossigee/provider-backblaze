@@ -155,7 +155,7 @@ func (r *BucketReconciler) getBackblazeClient(ctx context.Context, bucket *backb
 	}
 
 	pc := &apisv1beta1.ProviderConfig{}
-	if err := r.Client.Get(ctx, types.NamespacedName{Name: providerConfigName, Namespace: "crossplane-system"}, pc); err != nil {
+	if err := r.Client.Get(ctx, types.NamespacedName{Name: providerConfigName}, pc); err != nil {
 		// Check if this is a "not found" error that could be due to cache sync timing
 		if client.IgnoreNotFound(err) == nil {
 			// ProviderConfig not found - this could be a cache sync issue
