@@ -18,6 +18,7 @@ package bucket
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -95,7 +96,13 @@ func (r *BucketReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 	if err != nil {
 		logger.Error(err, "Failed to create Backblaze client")
 		r.setCondition(bucket, xpv1.TypeReady, "False", "ClientError", err.Error())
-		return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, bucket)
+		// Use shorter requeue time for ProviderConfig not found errors (likely cache sync issue)
+		requeueAfter := time.Minute
+		if strings.Contains(err.Error(), "not found") {
+			requeueAfter = 10 * time.Second
+			logger.Info("ProviderConfig not found, retrying in 10 seconds (likely cache sync issue)")
+		}
+		return reconcile.Result{RequeueAfter: requeueAfter}, r.Client.Status().Update(ctx, bucket)
 	}
 
 	// Check if bucket exists
@@ -149,6 +156,13 @@ func (r *BucketReconciler) getBackblazeClient(ctx context.Context, bucket *backb
 
 	pc := &apisv1beta1.ProviderConfig{}
 	if err := r.Client.Get(ctx, types.NamespacedName{Name: providerConfigName, Namespace: "crossplane-system"}, pc); err != nil {
+		// Check if this is a "not found" error that could be due to cache sync timing
+		if client.IgnoreNotFound(err) == nil {
+			// ProviderConfig not found - this could be a cache sync issue
+			// Return a retriable error to allow reconciliation to retry
+			return nil, errors.Wrap(err, errGetPC)
+		}
+		// Other errors (permission, etc.) - return immediately
 		return nil, errors.Wrap(err, errGetPC)
 	}
 
