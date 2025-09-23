@@ -158,8 +158,8 @@ echo "📋 Checking provider package details..."
 PACKAGE_IMAGE=$(kubectl get provider.pkg.crossplane.io provider-backblaze -o jsonpath='{.spec.package}')
 CURRENT_IMAGE=$(kubectl get provider.pkg.crossplane.io provider-backblaze -o jsonpath='{.status.currentIdentifier}')
 
-if [[ ! "$PACKAGE_IMAGE" =~ v0\.9\.[0-9]+ ]]; then
-    echo "⚠️  Warning: Provider package doesn't appear to be v0.9.x with v2 support: $PACKAGE_IMAGE"
+if [[ ! "$PACKAGE_IMAGE" =~ v0\.1[0-9]\.[0-9]+ ]]; then
+    echo "⚠️  Warning: Provider package doesn't appear to be v0.10.x+ with v2 support: $PACKAGE_IMAGE"
 fi
 
 echo "📦 Provider package: $PACKAGE_IMAGE"
