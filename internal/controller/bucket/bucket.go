@@ -23,7 +23,6 @@ import (
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -155,7 +154,9 @@ func (r *BucketReconciler) getBackblazeClient(ctx context.Context, bucket *backb
 	}
 
 	pc := &apisv1beta1.ProviderConfig{}
-	if err := r.Client.Get(ctx, types.NamespacedName{Name: providerConfigName}, pc); err != nil {
+	// ProviderConfigs are namespaced resources - look in the same namespace as the provider
+	key := client.ObjectKey{Name: providerConfigName, Namespace: "crossplane-system"}
+	if err := r.Client.Get(ctx, key, pc); err != nil {
 		// Check if this is a "not found" error that could be due to cache sync timing
 		if client.IgnoreNotFound(err) == nil {
 			// ProviderConfig not found - this could be a cache sync issue
