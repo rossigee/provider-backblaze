@@ -19,23 +19,24 @@ package user
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
-	"github.com/crossplane/crossplane-runtime/v2/pkg/event"
-	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
-	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
-	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
+	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 
-	apisv1beta1 "github.com/rossigee/provider-backblaze/apis/v1beta1"
 	backblazev1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1"
+	apisv1beta1 "github.com/rossigee/provider-backblaze/apis/v1beta1"
 	"github.com/rossigee/provider-backblaze/internal/clients"
-	"github.com/rossigee/provider-backblaze/internal/features"
 )
 
 const (
@@ -51,182 +52,154 @@ const (
 
 // SetupUser adds a controller that reconciles User managed resources.
 func SetupUser(mgr ctrl.Manager, o controller.Options) error {
-	name := managed.ControllerName(backblazev1.UserGroupKind)
-
-	cps := []managed.ConnectionPublisher{managed.NewAPISecretPublisher(mgr.GetClient(), mgr.GetScheme())}
-
-	r := managed.NewReconciler(mgr,
-		resource.ManagedKind(backblazev1.UserGroupVersionKind),
-		managed.WithExternalConnecter(&connector{
-			kube:         mgr.GetClient(),
-			usage:        resource.NewProviderConfigUsageTracker(mgr.GetClient(), &apisv1beta1.ProviderConfigUsage{}),
-			newServiceFn: clients.NewBackblazeClient,
-		}),
-		managed.WithLogger(o.Logger.WithValues("controller", name)),
-		managed.WithPollInterval(o.PollInterval),
-		managed.WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
-		managed.WithConnectionPublishers(cps...))
+	r := &UserReconciler{
+		Client: mgr.GetClient(),
+	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		Named(name).
-		WithOptions(o.ForControllerRuntime()).
-		WithEventFilter(resource.DesiredStateChanged()).
+		Named("user-controller").
 		For(&backblazev1.User{}).
-		Complete(ratelimiter.NewReconciler(name, r, o.GlobalRateLimiter))
+		Watches(&apisv1beta1.ProviderConfig{}, handler.Funcs{}).
+		Complete(r)
 }
 
-// A connector is expected to produce an ExternalClient when its Connect method
-// is called.
-type connector struct {
-	kube         client.Client
-	usage        resource.Tracker
-	newServiceFn func(ctx context.Context, region, applicationKeyID, applicationKey, endpointURL string) (clients.BackblazeClientInterface, error)
+// UserReconciler reconciles a User object
+type UserReconciler struct {
+	Client client.Client
 }
 
-// Connect typically produces an ExternalClient by:
-// 1. Tracking that the managed resource is using a ProviderConfig.
-// 2. Getting the managed resource's ProviderConfig.
-// 3. Getting the credentials specified by the ProviderConfig.
-// 4. Using the credentials to form a client.
-func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.ExternalClient, error) {
-	cr, ok := mg.(*backblazev1.User)
-	if !ok {
-		return nil, errors.New(errNotUser)
-	}
+// Reconcile is part of the main kubernetes reconciliation loop which aims to
+// move the current state of the cluster closer to the desired state.
+func (r *UserReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
+	logger := log.FromContext(ctx).WithValues("user", req.NamespacedName)
 
-	if err := c.usage.Track(ctx, mg); err != nil {
-		return nil, errors.Wrap(err, errTrackPCUsage)
-	}
-
-	// Get the ProviderConfig
-	providerConfigName := cr.GetProviderConfigReference().Name
-	if providerConfigName == "" {
-		providerConfigName = "default"
-	}
-
-	pc := &apisv1beta1.ProviderConfig{}
-	key := client.ObjectKey{Name: providerConfigName, Namespace: "crossplane-system"}
-	if err := c.kube.Get(ctx, key, pc); err != nil {
-		return nil, errors.Wrap(err, errGetProviderConfig)
-	}
-
-	backblazeClient, err := clients.GetProviderConfigClient(ctx, c.kube, pc, c.newServiceFn)
+	// Fetch the User instance
+	user := &backblazev1.User{}
+	err := r.Client.Get(ctx, req.NamespacedName, user)
 	if err != nil {
-		return nil, errors.Wrap(err, errCreateBackblazeClient)
+		if client.IgnoreNotFound(err) == nil {
+			// Object not found, return without error
+			logger.Info("User resource not found, likely deleted")
+			return reconcile.Result{}, nil
+		}
+		logger.Error(err, "Failed to get User")
+		return reconcile.Result{}, err
 	}
 
-	return &external{service: backblazeClient, kube: c.kube}, nil
+	logger.Info("Reconciling user", "keyName", user.Spec.ForProvider.KeyName)
+
+	// Check for deletion - in this simple implementation, we let Kubernetes handle deletion
+	if !user.GetDeletionTimestamp().IsZero() {
+		return r.handleDeletion(ctx, user)
+	}
+
+	// Get provider config and create client
+	service, err := r.getBackblazeClient(ctx, user)
+	if err != nil {
+		logger.Error(err, "Failed to create Backblaze client")
+		r.setCondition(user, xpv1.TypeReady, "False", "ClientError", err.Error())
+		// Use shorter requeue time for ProviderConfig not found errors (likely cache sync issue)
+		requeueAfter := time.Minute
+		if strings.Contains(err.Error(), "not found") {
+			requeueAfter = 10 * time.Second
+		}
+		return reconcile.Result{RequeueAfter: requeueAfter}, r.Client.Status().Update(ctx, user)
+	}
+
+	// Check if application key already exists
+	if user.Status.AtProvider.ApplicationKeyID == "" {
+		// Create application key
+		if err := r.createApplicationKey(ctx, user, service); err != nil {
+			logger.Error(err, "Failed to create application key")
+			r.setCondition(user, xpv1.TypeReady, "False", "CreateError", err.Error())
+			return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, user)
+		}
+	}
+
+	// Application key exists and is ready
+	r.setCondition(user, xpv1.TypeReady, "True", "Available", "Application key is available")
+	r.setCondition(user, xpv1.TypeSynced, "True", "ReconcileSuccess", "Successfully reconciled")
+
+	logger.Info("Successfully reconciled user")
+	return reconcile.Result{RequeueAfter: 5 * time.Minute}, r.Client.Status().Update(ctx, user)
 }
 
-// An ExternalClient observes, then either creates, updates, or deletes an
-// external resource to ensure it reflects the managed resource's desired state.
-type external struct {
-	service clients.BackblazeClientInterface
-	kube    client.Client
-}
+func (r *UserReconciler) handleDeletion(ctx context.Context, user *backblazev1.User) (reconcile.Result, error) {
+	logger := log.FromContext(ctx)
 
-func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) {
-	cr, ok := mg.(*backblazev1.User)
-	if !ok {
-		return managed.ExternalObservation{}, errors.New(errNotUser)
-	}
-
-	// If we don't have an application key ID yet, the resource doesn't exist
-	if cr.Status.AtProvider.ApplicationKeyID == "" {
-		return managed.ExternalObservation{
-			ResourceExists: false,
-		}, nil
-	}
-
-	// For now, we assume the key exists if we have an ID
-	// In a full implementation, you would call the Backblaze API to verify
-	// TODO: Implement actual key verification via B2 API
-
-	// Update status with current information
-	cr.Status.AtProvider.Capabilities = cr.Spec.ForProvider.Capabilities
-	if cr.Spec.ForProvider.BucketID != nil {
-		cr.Status.AtProvider.BucketID = cr.Spec.ForProvider.BucketID
-	}
-	if cr.Spec.ForProvider.NamePrefix != nil {
-		cr.Status.AtProvider.NamePrefix = cr.Spec.ForProvider.NamePrefix
-	}
-
-	return managed.ExternalObservation{
-		ResourceExists:   true,
-		ResourceUpToDate: true,
-	}, nil
-}
-
-func (c *external) Create(ctx context.Context, mg resource.Managed) (managed.ExternalCreation, error) {
-	cr, ok := mg.(*backblazev1.User)
-	if !ok {
-		return managed.ExternalCreation{}, errors.New(errNotUser)
-	}
-
-	// For this implementation, we'll simulate application key creation
-	// In a real implementation, you would use the Backblaze B2 API
-	// TODO: Implement actual B2 application key creation
-
-	// Generate a simulated application key ID and key
-	applicationKeyID := fmt.Sprintf("K005%012d", cr.GetGeneration())
-	applicationKey := fmt.Sprintf("K005%024d", cr.GetGeneration()*1000)
-
-	// Update the resource status
-	cr.Status.AtProvider.ApplicationKeyID = applicationKeyID
-	cr.Status.AtProvider.AccountID = "simulated-account-id"
-	cr.Status.AtProvider.Capabilities = cr.Spec.ForProvider.Capabilities
-	if cr.Spec.ForProvider.BucketID != nil {
-		cr.Status.AtProvider.BucketID = cr.Spec.ForProvider.BucketID
-	}
-	if cr.Spec.ForProvider.NamePrefix != nil {
-		cr.Status.AtProvider.NamePrefix = cr.Spec.ForProvider.NamePrefix
-	}
-	if cr.Spec.ForProvider.ValidDurationInSeconds != nil {
-		cr.Status.AtProvider.ExpirationTimestamp = cr.Spec.ForProvider.ValidDurationInSeconds
-	}
-
-	// Create the secret with the application key credentials
-	if err := c.writeSecret(ctx, cr, applicationKeyID, applicationKey); err != nil {
-		return managed.ExternalCreation{}, errors.Wrap(err, errWriteSecret)
-	}
-
-	return managed.ExternalCreation{
-		ConnectionDetails: managed.ConnectionDetails{
-			"applicationKeyId": []byte(applicationKeyID),
-			"applicationKey":   []byte(applicationKey),
-		},
-	}, nil
-}
-
-func (c *external) Update(ctx context.Context, mg resource.Managed) (managed.ExternalUpdate, error) {
-	// Application keys in Backblaze B2 are typically immutable
-	// Updates would require creating a new key and deleting the old one
-	return managed.ExternalUpdate{}, nil
-}
-
-func (c *external) Delete(ctx context.Context, mg resource.Managed) error {
-	cr, ok := mg.(*backblazev1.User)
-	if !ok {
-		return errors.New(errNotUser)
+	// Delete the associated secret
+	if err := r.deleteSecret(ctx, user); err != nil {
+		logger.Error(err, "Failed to delete application key secret")
+		// Continue with deletion even if secret deletion fails
 	}
 
 	// For this implementation, we'll simulate application key deletion
 	// In a real implementation, you would use the Backblaze B2 API
 	// TODO: Implement actual B2 application key deletion
 
-	// Delete the associated secret
-	if err := c.deleteSecret(ctx, cr); err != nil {
-		// Log the error but don't fail the deletion
-		// The main resource should still be considered deleted
-		return nil
+	logger.Info("User deletion handled")
+	return reconcile.Result{}, nil
+}
+
+func (r *UserReconciler) createApplicationKey(ctx context.Context, user *backblazev1.User, service *clients.BackblazeClient) error {
+	// For this implementation, we'll simulate application key creation
+	// In a real implementation, you would use the Backblaze B2 API
+	// TODO: Implement actual B2 application key creation
+
+	// Generate a simulated application key ID and key
+	applicationKeyID := fmt.Sprintf("K005%012d", user.GetGeneration())
+	applicationKey := fmt.Sprintf("K005%024d", user.GetGeneration()*1000)
+
+	// Update the resource status
+	user.Status.AtProvider.ApplicationKeyID = applicationKeyID
+	user.Status.AtProvider.AccountID = "simulated-account-id"
+	user.Status.AtProvider.Capabilities = user.Spec.ForProvider.Capabilities
+	if user.Spec.ForProvider.BucketID != nil {
+		user.Status.AtProvider.BucketID = user.Spec.ForProvider.BucketID
+	}
+	if user.Spec.ForProvider.NamePrefix != nil {
+		user.Status.AtProvider.NamePrefix = user.Spec.ForProvider.NamePrefix
+	}
+	if user.Spec.ForProvider.ValidDurationInSeconds != nil {
+		user.Status.AtProvider.ExpirationTimestamp = user.Spec.ForProvider.ValidDurationInSeconds
 	}
 
-	return nil
+	// Create the secret with the application key credentials
+	return r.writeSecret(ctx, user, applicationKeyID, applicationKey)
+}
+
+func (r *UserReconciler) getBackblazeClient(ctx context.Context, user *backblazev1.User) (*clients.BackblazeClient, error) {
+	// Determine ProviderConfig name - use "default" if not specified
+	providerConfigName := "default"
+	if user.GetProviderConfigReference() != nil {
+		providerConfigName = user.GetProviderConfigReference().Name
+	}
+
+	pc := &apisv1beta1.ProviderConfig{}
+	// ProviderConfigs are namespaced resources - look in the same namespace as the provider
+	key := client.ObjectKey{Name: providerConfigName, Namespace: "crossplane-system"}
+	if err := r.Client.Get(ctx, key, pc); err != nil {
+		// Check if this is a "not found" error that could be due to cache sync timing
+		if client.IgnoreNotFound(err) == nil {
+			// ProviderConfig not found - this could be a cache sync issue
+			// Return a retriable error to allow reconciliation to retry
+			return nil, errors.Wrap(err, errGetProviderConfig)
+		}
+		// Other errors (permission, etc.) - return immediately
+		return nil, errors.Wrap(err, errGetProviderConfig)
+	}
+
+	cfg, err := clients.GetProviderConfig(ctx, r.Client, pc)
+	if err != nil {
+		return nil, errors.Wrap(err, errGetProviderConfig)
+	}
+
+	return clients.NewBackblazeClient(*cfg)
 }
 
 // writeSecret creates or updates the secret containing the application key credentials
-func (c *external) writeSecret(ctx context.Context, cr *backblazev1.User, applicationKeyID, applicationKey string) error {
-	secretRef := cr.Spec.ForProvider.WriteSecretToRef
+func (r *UserReconciler) writeSecret(ctx context.Context, user *backblazev1.User, applicationKeyID, applicationKey string) error {
+	secretRef := user.Spec.ForProvider.WriteSecretToRef
 
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -240,12 +213,12 @@ func (c *external) writeSecret(ctx context.Context, cr *backblazev1.User, applic
 		},
 	}
 
-	return c.kube.Create(ctx, secret)
+	return r.Client.Create(ctx, secret)
 }
 
 // deleteSecret removes the secret containing the application key credentials
-func (c *external) deleteSecret(ctx context.Context, cr *backblazev1.User) error {
-	secretRef := cr.Spec.ForProvider.WriteSecretToRef
+func (r *UserReconciler) deleteSecret(ctx context.Context, user *backblazev1.User) error {
+	secretRef := user.Spec.ForProvider.WriteSecretToRef
 
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -254,5 +227,15 @@ func (c *external) deleteSecret(ctx context.Context, cr *backblazev1.User) error
 		},
 	}
 
-	return client.IgnoreNotFound(c.kube.Delete(ctx, secret))
+	return client.IgnoreNotFound(r.Client.Delete(ctx, secret))
+}
+
+func (r *UserReconciler) setCondition(user *backblazev1.User, conditionType xpv1.ConditionType, status, reason, message string) {
+	user.SetConditions(xpv1.Condition{
+		Type:               conditionType,
+		Status:             corev1.ConditionStatus(status),
+		LastTransitionTime: metav1.NewTime(time.Now()),
+		Reason:             xpv1.ConditionReason(reason),
+		Message:            message,
+	})
 }
