@@ -1,8 +1,17 @@
+# Standardized CI/CD Template for Crossplane Providers
+# Version: 2025-09-26 - Updated for Go 1.25.1
+#
+# This template implements CI builds and validates ONLY
+# - CI: Build validation only (no publishing to avoid tag conflicts)
+# - Release: All publishing handled by release-template.yml
+#
+# Apply this pattern across all providers to eliminate tag conflicts
+
 name: CI
 
 on:
   push:
-    branches: 
+    branches:
       - master
       - release-*
   pull_request:
@@ -13,9 +22,9 @@ on:
 
 permissions:
   contents: read
-  packages: write
-  id-token: write
-  actions: read
+  packages: write  # Needed for security scanning uploads
+  id-token: write  # Needed for OIDC
+  actions: read    # Needed for detecting duplicate actions
 
 env:
   GO_VERSION: '1.25.1'
@@ -41,7 +50,6 @@ jobs:
     runs-on: ubuntu-24.04
     needs: detect-noop
     if: needs.detect-noop.outputs.noop != 'true'
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -63,7 +71,6 @@ jobs:
     runs-on: ubuntu-24.04
     needs: detect-noop
     if: needs.detect-noop.outputs.noop != 'true'
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -87,7 +94,6 @@ jobs:
     runs-on: ubuntu-24.04
     needs: detect-noop
     if: needs.detect-noop.outputs.noop != 'true'
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -104,8 +110,7 @@ jobs:
         run: go mod vendor
 
       - name: Run Unit Tests
-        run: |
-          make test
+        run: make test
 
       - name: Upload Coverage Reports
         uses: codecov/codecov-action@v4
@@ -121,7 +126,6 @@ jobs:
     permissions:
       contents: read
       security-events: write
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -190,9 +194,13 @@ jobs:
           echo "Repository: ${{ github.repository }}"
           echo "Repository owner: ${{ github.repository_owner }}"
           
-          # Build binary and Docker image (make build includes both)
+          # Build binary
           make build
-          echo "✅ Binary and Docker image build successful"
+          echo "✅ Binary build successful"
+          
+          # Build Docker image locally (without push)
+          make docker.build
+          echo "✅ Docker image build successful"
           
           # Build Crossplane package locally (without push)
           make xpkg.build
@@ -206,3 +214,35 @@ jobs:
           echo "🎯 Build validation completed successfully"
           echo "📦 All artifacts can be built successfully"
           echo "🏷️  Publishing will occur only on release tag creation"
+
+# Key Principles for this Template:
+# 
+# 1. CI BUILDS, RELEASE PUBLISHES
+#    - CI workflow: Only validates builds (no registry pushes)
+#    - Release workflow: Handles all publishing
+#    - Eliminates tag conflicts between workflows
+# 
+# 2. SINGLE PRIMARY REGISTRY
+#    - Primary: ghcr.io/rossigee (consistent across all providers)
+#    - Optional: Environment-controlled additional registries
+# 
+# 3. PARALLEL VALIDATION
+#    - All validation jobs run in parallel after noop detection
+#    - Build validation only runs on master branch
+# 
+# 4. COMPREHENSIVE SECURITY
+#    - govulncheck: Go vulnerability scanning
+#    - gosec: Static security analysis
+#    - CodeQL integration for SARIF uploads
+# 
+# 5. STANDARDIZED BUILD SYSTEM
+#    - Uses rossigee/build submodule (working fork)
+#    - Consistent make targets across all providers
+#    - Go 1.24.5 with proper version handling
+# 
+# To apply this template:
+# 1. Copy this structure to .github/workflows/ci.yml
+# 2. Update provider-specific names/paths
+# 3. Ensure release.yml handles all publishing
+# 4. Test with a commit to master (should only validate)
+# 5. Test with a version tag (should publish properly)

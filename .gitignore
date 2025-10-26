@@ -61,3 +61,7 @@ examples/**/*-actual.yaml
 
 # Cache directories
 .cache/
+
+# Build artifacts
+manifest.json
+package/package.yaml
