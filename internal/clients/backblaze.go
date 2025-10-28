@@ -25,10 +25,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -57,7 +58,7 @@ const (
 
 // BackblazeClient represents a client for Backblaze B2 using S3-compatible API and native B2 API
 type BackblazeClient struct {
-	S3Client *s3.S3
+	S3Client *s3.Client
 	Region   string
 	Endpoint string
 
@@ -91,24 +92,25 @@ func NewBackblazeClient(cfg Config) (*BackblazeClient, error) {
 
 	endpoint := fmt.Sprintf(DefaultEndpointFormat, cfg.Region)
 
-	awsConfig := &aws.Config{
-		Credentials: credentials.NewStaticCredentials(
+	awsCfg, err := config.LoadDefaultConfig(context.Background(),
+		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
 			cfg.ApplicationKeyID,
 			cfg.ApplicationKey,
 			"", // token not needed for Backblaze B2
-		),
-		Region:           aws.String(cfg.Region),
-		Endpoint:         aws.String(endpoint),
-		S3ForcePathStyle: aws.Bool(true), // Required for Backblaze B2
+		)),
+		config.WithRegion(cfg.Region),
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to load AWS config")
 	}
 
-	sess, err := session.NewSession(awsConfig)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to create AWS session")
-	}
+	s3Client := s3.NewFromConfig(awsCfg, func(o *s3.Options) {
+		o.BaseEndpoint = aws.String(endpoint)
+		o.UsePathStyle = true // Required for Backblaze B2
+	})
 
 	return &BackblazeClient{
-		S3Client:         s3.New(sess),
+		S3Client:         s3Client,
 		Region:           cfg.Region,
 		Endpoint:         endpoint,
 		HTTPClient:       &http.Client{Timeout: 30 * time.Second},
@@ -166,12 +168,12 @@ func (c *BackblazeClient) CreateBucket(ctx context.Context, bucketName, bucketTy
 
 	// Set the region constraint if different from client region
 	if region != "" && region != c.Region {
-		input.CreateBucketConfiguration = &s3.CreateBucketConfiguration{
-			LocationConstraint: aws.String(region),
+		input.CreateBucketConfiguration = &types.CreateBucketConfiguration{
+			LocationConstraint: types.BucketLocationConstraint(region),
 		}
 	}
 
-	_, err := c.S3Client.CreateBucketWithContext(ctx, input)
+	_, err := c.S3Client.CreateBucket(ctx, input)
 	if err != nil {
 		return errors.Wrap(err, "failed to create bucket")
 	}
@@ -185,7 +187,7 @@ func (c *BackblazeClient) DeleteBucket(ctx context.Context, bucketName string) e
 		Bucket: aws.String(bucketName),
 	}
 
-	_, err := c.S3Client.DeleteBucketWithContext(ctx, input)
+	_, err := c.S3Client.DeleteBucket(ctx, input)
 	if err != nil {
 		return errors.Wrap(err, "failed to delete bucket")
 	}
@@ -199,7 +201,7 @@ func (c *BackblazeClient) BucketExists(ctx context.Context, bucketName string) (
 		Bucket: aws.String(bucketName),
 	}
 
-	_, err := c.S3Client.HeadBucketWithContext(ctx, input)
+	_, err := c.S3Client.HeadBucket(ctx, input)
 	if err != nil {
 		if isNotFoundError(err) {
 			return false, nil
@@ -216,22 +218,17 @@ func (c *BackblazeClient) GetBucketLocation(ctx context.Context, bucketName stri
 		Bucket: aws.String(bucketName),
 	}
 
-	result, err := c.S3Client.GetBucketLocationWithContext(ctx, input)
+	result, err := c.S3Client.GetBucketLocation(ctx, input)
 	if err != nil {
 		return "", errors.Wrap(err, "failed to get bucket location")
 	}
 
-	location := ""
-	if result.LocationConstraint != nil {
-		location = *result.LocationConstraint
-	}
-
-	return location, nil
+	return string(result.LocationConstraint), nil
 }
 
 // ListBuckets lists all buckets accessible with the current credentials
-func (c *BackblazeClient) ListBuckets(ctx context.Context) ([]*s3.Bucket, error) {
-	result, err := c.S3Client.ListBucketsWithContext(ctx, &s3.ListBucketsInput{})
+func (c *BackblazeClient) ListBuckets(ctx context.Context) ([]types.Bucket, error) {
+	result, err := c.S3Client.ListBuckets(ctx, &s3.ListBucketsInput{})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to list buckets")
 	}
@@ -247,7 +244,7 @@ func (c *BackblazeClient) DeleteAllObjectsInBucket(ctx context.Context, bucketNa
 	}
 
 	for {
-		result, err := c.S3Client.ListObjectsV2WithContext(ctx, listInput)
+		result, err := c.S3Client.ListObjectsV2(ctx, listInput)
 		if err != nil {
 			return errors.Wrap(err, "failed to list objects")
 		}
@@ -257,27 +254,27 @@ func (c *BackblazeClient) DeleteAllObjectsInBucket(ctx context.Context, bucketNa
 		}
 
 		// Delete objects in batch
-		objects := make([]*s3.ObjectIdentifier, len(result.Contents))
+		objects := make([]types.ObjectIdentifier, len(result.Contents))
 		for i, obj := range result.Contents {
-			objects[i] = &s3.ObjectIdentifier{
+			objects[i] = types.ObjectIdentifier{
 				Key: obj.Key,
 			}
 		}
 
 		deleteInput := &s3.DeleteObjectsInput{
 			Bucket: aws.String(bucketName),
-			Delete: &s3.Delete{
+			Delete: &types.Delete{
 				Objects: objects,
 			},
 		}
 
-		_, err = c.S3Client.DeleteObjectsWithContext(ctx, deleteInput)
+		_, err = c.S3Client.DeleteObjects(ctx, deleteInput)
 		if err != nil {
 			return errors.Wrap(err, "failed to delete objects")
 		}
 
 		// Check if there are more objects to delete
-		if !aws.BoolValue(result.IsTruncated) {
+		if result.IsTruncated == nil || !*result.IsTruncated {
 			break
 		}
 		listInput.ContinuationToken = result.NextContinuationToken
@@ -596,7 +593,7 @@ func (c *BackblazeClient) GetBucketPolicy(ctx context.Context, bucketName string
 		Bucket: aws.String(bucketName),
 	}
 
-	result, err := c.S3Client.GetBucketPolicyWithContext(ctx, input)
+	result, err := c.S3Client.GetBucketPolicy(ctx, input)
 	if err != nil {
 		if isNotFoundError(err) || err.Error() == "NoSuchBucketPolicy" {
 			return "", errors.New("bucket policy not found")
@@ -618,7 +615,7 @@ func (c *BackblazeClient) PutBucketPolicy(ctx context.Context, bucketName, polic
 		Policy: aws.String(policy),
 	}
 
-	_, err := c.S3Client.PutBucketPolicyWithContext(ctx, input)
+	_, err := c.S3Client.PutBucketPolicy(ctx, input)
 	if err != nil {
 		return errors.Wrap(err, "failed to put bucket policy")
 	}
@@ -632,7 +629,7 @@ func (c *BackblazeClient) DeleteBucketPolicy(ctx context.Context, bucketName str
 		Bucket: aws.String(bucketName),
 	}
 
-	_, err := c.S3Client.DeleteBucketPolicyWithContext(ctx, input)
+	_, err := c.S3Client.DeleteBucketPolicy(ctx, input)
 	if err != nil {
 		if isNotFoundError(err) || err.Error() == "NoSuchBucketPolicy" {
 			return errors.New("bucket policy not found")
