@@ -87,7 +87,7 @@ APIs:
 ## Registry Configuration
 
 Following the standardized approach:
-- **Primary**: `ghcr.io/rossigee/provider-backblaze:v0.10.0`
+- **Primary**: `ghcr.io/rossigee/provider-backblaze:v0.12.0`
 - **Latest**: `ghcr.io/rossigee/provider-backblaze:latest`
 - **Versioning**: Semantic versioning with automated tagging
 
@@ -149,18 +149,18 @@ lifecycleRules:
 |---------|--------------|--------|-------|--------|
 | Bucket Operations | ✅ | ✅ | ✅ | ✅ Implemented |
 | S3 API Compatibility | ✅ | ✅ | ✅ | ✅ Full |
-| Application Keys | ✅ | ❌ | ✅ | 🔄 Planned |
-| Lifecycle Rules | ✅ | ✅ | ✅ | 🔄 Planned |
-| CORS Configuration | ✅ | ✅ | ✅ | 🔄 Planned |
-| Bucket Policies | ✅ | ✅ | ✅ | 🔄 Planned |
+| Application Keys | ✅ | ❌ | ✅ | ✅ Implemented |
+| Lifecycle Rules | ✅ | ✅ | ✅ | ✅ Implemented |
+| CORS Configuration | ✅ | ✅ | ✅ | ✅ Implemented |
+| Bucket Policies | ✅ | ✅ | ✅ | ✅ Implemented |
 
 ## Next Steps
 
-### **Phase 1: Core Completion**
-1. Implement User controller for application key management
-2. Implement Policy controller for S3-compatible policies
-3. Add comprehensive error handling and validation
-4. Create integration test suite with real B2 environment
+### **Phase 1: Core Completion** ✅ **COMPLETE**
+1. ✅ Implement User controller for application key management
+2. ✅ Implement Policy controller for S3-compatible policies
+3. ✅ Add comprehensive error handling and validation
+4. ✅ Create integration test suite with real B2 environment
 
 ### **Phase 2: Advanced Features**
 1. B2-specific lifecycle rule implementation
