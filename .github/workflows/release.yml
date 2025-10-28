@@ -1,5 +1,5 @@
 # Standardized Release Template for Crossplane Providers
-# Version: 2025-10-23 - Regression fixes and verification
+# Version: 2025-10-28 - Updated for Go 1.25.3 and modern actions
 #
 # This template handles ALL publishing for releases
 # - Only runs on version tag creation to avoid conflicts with CI
@@ -45,7 +45,7 @@ jobs:
           submodules: true
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
 
