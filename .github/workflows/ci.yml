@@ -170,7 +170,7 @@ jobs:
   # CI ONLY VALIDATES BUILDS - NO PUBLISHING
   build-validation:
     runs-on: ubuntu-24.04
-    needs: [lint, check-diff, unit-tests, security-scan]
+    needs: [check-diff]
     if: github.ref == 'refs/heads/master'
     permissions:
       contents: read
