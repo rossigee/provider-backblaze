@@ -65,7 +65,7 @@ jobs:
         run: go mod vendor
 
       - name: Lint
-        run: make lint
+        run: timeout 300 make lint
 
   check-diff:
     runs-on: ubuntu-24.04
@@ -110,7 +110,7 @@ jobs:
         run: go mod vendor
 
       - name: Run Unit Tests
-        run: make test
+        run: timeout 600 make test
 
       - name: Upload Coverage Reports
         uses: codecov/codecov-action@v4
