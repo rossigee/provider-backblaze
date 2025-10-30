@@ -64,4 +64,4 @@ examples/**/*-actual.yaml
 
 # Build artifacts
 manifest.json
-package/crossplane.yaml
+package/package.yaml
