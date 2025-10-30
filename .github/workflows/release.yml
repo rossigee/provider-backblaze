@@ -44,21 +44,6 @@ jobs:
           prerelease: false
           generate_release_notes: true
 
-  # Add promotion to update latest tag
-  promote:
-    needs: release
-    uses: crossplane-contrib/provider-workflows/.github/workflows/publish-provider.yml@main
-    with:
-      repository: ${{ github.event.repository.name }}
-      version: ${{ github.event.inputs.version || github.ref_name }}
-      go-version: '1.25.3'
-      registry_org: 'rossigee'
-      mirror: false
-      cleanup-disk: true
-      channel: master  # Promote to master/latest channel
-    secrets:
-      GHCR_PAT: ${{ secrets.PAT_TOKEN }}
-
   # Add publication verification (preserves your custom verification)
   verify-publication:
     needs: release
