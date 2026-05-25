@@ -22,7 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
+	xpv1 "github.com/crossplane/crossplane/apis/v2/core/v2"
 )
 
 // UserParameters are the configurable fields of a User (Application Key).
@@ -76,13 +76,13 @@ type UserObservation struct {
 
 // A UserSpec defines the desired state of a User.
 type UserSpec struct {
-	xpv1.ResourceSpec `json:",inline"`
+	xpv1.ManagedResourceSpec `json:",inline"`
 	ForProvider       UserParameters `json:"forProvider"`
 }
 
 // A UserStatus represents the observed state of a User.
 type UserStatus struct {
-	xpv1.ResourceStatus `json:",inline"`
+	xpv1.ManagedResourceStatus `json:",inline"`
 	AtProvider          UserObservation `json:"atProvider,omitempty"`
 }
 

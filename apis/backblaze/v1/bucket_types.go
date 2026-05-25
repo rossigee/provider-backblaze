@@ -22,7 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
+	xpv1 "github.com/crossplane/crossplane/apis/v2/core/v2"
 )
 
 // BucketDeletionPolicy represents the bucket deletion policy.
@@ -119,13 +119,13 @@ type BucketObservation struct {
 
 // A BucketSpec defines the desired state of a Bucket.
 type BucketSpec struct {
-	xpv1.ResourceSpec `json:",inline"`
+	xpv1.ManagedResourceSpec `json:",inline"`
 	ForProvider       BucketParameters `json:"forProvider"`
 }
 
 // A BucketStatus represents the observed state of a Bucket.
 type BucketStatus struct {
-	xpv1.ResourceStatus `json:",inline"`
+	xpv1.ManagedResourceStatus `json:",inline"`
 	AtProvider          BucketObservation `json:"atProvider,omitempty"`
 }
 

@@ -17,17 +17,13 @@ limitations under the License.
 
 package v1
 
-import xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
+import xpv1 "github.com/crossplane/crossplane/apis/v2/core/v2"
 
 // GetCondition of this Bucket.
 func (mg *Bucket) GetCondition(ct xpv1.ConditionType) xpv1.Condition {
 	return mg.Status.GetCondition(ct)
 }
 
-// GetDeletionPolicy of this Bucket.
-func (mg *Bucket) GetDeletionPolicy() xpv1.DeletionPolicy {
-	return mg.Spec.DeletionPolicy
-}
 
 // GetManagementPolicies of this Bucket.
 func (mg *Bucket) GetManagementPolicies() xpv1.ManagementPolicies {
@@ -35,12 +31,12 @@ func (mg *Bucket) GetManagementPolicies() xpv1.ManagementPolicies {
 }
 
 // GetProviderConfigReference of this Bucket.
-func (mg *Bucket) GetProviderConfigReference() *xpv1.Reference {
+func (mg *Bucket) GetProviderConfigReference() *xpv1.ProviderConfigReference {
 	return mg.Spec.ProviderConfigReference
 }
 
 // GetWriteConnectionSecretToReference of this Bucket.
-func (mg *Bucket) GetWriteConnectionSecretToReference() *xpv1.SecretReference {
+func (mg *Bucket) GetWriteConnectionSecretToReference() *xpv1.LocalSecretReference {
 	return mg.Spec.WriteConnectionSecretToReference
 }
 
@@ -49,10 +45,6 @@ func (mg *Bucket) SetConditions(c ...xpv1.Condition) {
 	mg.Status.SetConditions(c...)
 }
 
-// SetDeletionPolicy of this Bucket.
-func (mg *Bucket) SetDeletionPolicy(r xpv1.DeletionPolicy) {
-	mg.Spec.DeletionPolicy = r
-}
 
 // SetManagementPolicies of this Bucket.
 func (mg *Bucket) SetManagementPolicies(r xpv1.ManagementPolicies) {
@@ -60,12 +52,12 @@ func (mg *Bucket) SetManagementPolicies(r xpv1.ManagementPolicies) {
 }
 
 // SetProviderConfigReference of this Bucket.
-func (mg *Bucket) SetProviderConfigReference(r *xpv1.Reference) {
+func (mg *Bucket) SetProviderConfigReference(r *xpv1.ProviderConfigReference) {
 	mg.Spec.ProviderConfigReference = r
 }
 
 // SetWriteConnectionSecretToReference of this Bucket.
-func (mg *Bucket) SetWriteConnectionSecretToReference(r *xpv1.SecretReference) {
+func (mg *Bucket) SetWriteConnectionSecretToReference(r *xpv1.LocalSecretReference) {
 	mg.Spec.WriteConnectionSecretToReference = r
 }
 
@@ -74,10 +66,6 @@ func (mg *Policy) GetCondition(ct xpv1.ConditionType) xpv1.Condition {
 	return mg.Status.GetCondition(ct)
 }
 
-// GetDeletionPolicy of this Policy.
-func (mg *Policy) GetDeletionPolicy() xpv1.DeletionPolicy {
-	return mg.Spec.DeletionPolicy
-}
 
 // GetManagementPolicies of this Policy.
 func (mg *Policy) GetManagementPolicies() xpv1.ManagementPolicies {
@@ -85,12 +73,12 @@ func (mg *Policy) GetManagementPolicies() xpv1.ManagementPolicies {
 }
 
 // GetProviderConfigReference of this Policy.
-func (mg *Policy) GetProviderConfigReference() *xpv1.Reference {
+func (mg *Policy) GetProviderConfigReference() *xpv1.ProviderConfigReference {
 	return mg.Spec.ProviderConfigReference
 }
 
 // GetWriteConnectionSecretToReference of this Policy.
-func (mg *Policy) GetWriteConnectionSecretToReference() *xpv1.SecretReference {
+func (mg *Policy) GetWriteConnectionSecretToReference() *xpv1.LocalSecretReference {
 	return mg.Spec.WriteConnectionSecretToReference
 }
 
@@ -99,10 +87,6 @@ func (mg *Policy) SetConditions(c ...xpv1.Condition) {
 	mg.Status.SetConditions(c...)
 }
 
-// SetDeletionPolicy of this Policy.
-func (mg *Policy) SetDeletionPolicy(r xpv1.DeletionPolicy) {
-	mg.Spec.DeletionPolicy = r
-}
 
 // SetManagementPolicies of this Policy.
 func (mg *Policy) SetManagementPolicies(r xpv1.ManagementPolicies) {
@@ -110,12 +94,12 @@ func (mg *Policy) SetManagementPolicies(r xpv1.ManagementPolicies) {
 }
 
 // SetProviderConfigReference of this Policy.
-func (mg *Policy) SetProviderConfigReference(r *xpv1.Reference) {
+func (mg *Policy) SetProviderConfigReference(r *xpv1.ProviderConfigReference) {
 	mg.Spec.ProviderConfigReference = r
 }
 
 // SetWriteConnectionSecretToReference of this Policy.
-func (mg *Policy) SetWriteConnectionSecretToReference(r *xpv1.SecretReference) {
+func (mg *Policy) SetWriteConnectionSecretToReference(r *xpv1.LocalSecretReference) {
 	mg.Spec.WriteConnectionSecretToReference = r
 }
 
@@ -124,10 +108,6 @@ func (mg *User) GetCondition(ct xpv1.ConditionType) xpv1.Condition {
 	return mg.Status.GetCondition(ct)
 }
 
-// GetDeletionPolicy of this User.
-func (mg *User) GetDeletionPolicy() xpv1.DeletionPolicy {
-	return mg.Spec.DeletionPolicy
-}
 
 // GetManagementPolicies of this User.
 func (mg *User) GetManagementPolicies() xpv1.ManagementPolicies {
@@ -135,12 +115,12 @@ func (mg *User) GetManagementPolicies() xpv1.ManagementPolicies {
 }
 
 // GetProviderConfigReference of this User.
-func (mg *User) GetProviderConfigReference() *xpv1.Reference {
+func (mg *User) GetProviderConfigReference() *xpv1.ProviderConfigReference {
 	return mg.Spec.ProviderConfigReference
 }
 
 // GetWriteConnectionSecretToReference of this User.
-func (mg *User) GetWriteConnectionSecretToReference() *xpv1.SecretReference {
+func (mg *User) GetWriteConnectionSecretToReference() *xpv1.LocalSecretReference {
 	return mg.Spec.WriteConnectionSecretToReference
 }
 
@@ -149,10 +129,6 @@ func (mg *User) SetConditions(c ...xpv1.Condition) {
 	mg.Status.SetConditions(c...)
 }
 
-// SetDeletionPolicy of this User.
-func (mg *User) SetDeletionPolicy(r xpv1.DeletionPolicy) {
-	mg.Spec.DeletionPolicy = r
-}
 
 // SetManagementPolicies of this User.
 func (mg *User) SetManagementPolicies(r xpv1.ManagementPolicies) {
@@ -160,11 +136,11 @@ func (mg *User) SetManagementPolicies(r xpv1.ManagementPolicies) {
 }
 
 // SetProviderConfigReference of this User.
-func (mg *User) SetProviderConfigReference(r *xpv1.Reference) {
+func (mg *User) SetProviderConfigReference(r *xpv1.ProviderConfigReference) {
 	mg.Spec.ProviderConfigReference = r
 }
 
 // SetWriteConnectionSecretToReference of this User.
-func (mg *User) SetWriteConnectionSecretToReference(r *xpv1.SecretReference) {
+func (mg *User) SetWriteConnectionSecretToReference(r *xpv1.LocalSecretReference) {
 	mg.Spec.WriteConnectionSecretToReference = r
 }
