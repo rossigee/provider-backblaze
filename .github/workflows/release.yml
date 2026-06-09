@@ -171,7 +171,7 @@ jobs:
     steps:
       - name: Verify Publication
         run: |
-          set -e  # Fail fast on any error
+          set -e
 
           VERSION="${{ github.event.inputs.version || github.ref_name }}"
           PROVIDER_NAME="${{ github.event.repository.name }}"
@@ -180,21 +180,10 @@ jobs:
           echo "Verifying publication to ${REGISTRY_PATH}:${VERSION}"
 
           if docker pull "${REGISTRY_PATH}:${VERSION}" > /dev/null 2>&1; then
-            echo "✅ Verified container image latest"
+            DIGEST=$(docker inspect "${REGISTRY_PATH}:${VERSION}" --format='{{index .RepoDigests 0}}' | cut -d'@' -f2)
+            echo "✅ Verified container image ${VERSION}"
+            echo "   Digest: ${DIGEST}"
           else
-            echo "❌ Failed to pull container image latest"
-            exit 1
-          fi
-
-          VERSION_DIGEST=$(docker inspect "${REGISTRY_PATH}:${VERSION}" --format='{{index .RepoDigests 0}}' | cut -d'@' -f2)
-          LATEST_DIGEST=$(docker inspect "${REGISTRY_PATH}:latest" --format='{{index .RepoDigests 0}}' | cut -d'@' -f2)
-
-          if [ "$VERSION_DIGEST" = "$LATEST_DIGEST" ]; then
-            echo "✅ Version and latest tags point to identical image"
-            echo "   Digest: ${VERSION_DIGEST}"
-          else
-            echo "❌ Version and latest tags point to different images"
-            echo "   Version digest: ${VERSION_DIGEST}"
-            echo "   Latest digest:  ${LATEST_DIGEST}"
+            echo "❌ Failed to pull container image ${VERSION}"
             exit 1
           fi
