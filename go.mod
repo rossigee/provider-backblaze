@@ -8,7 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.32.17
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.16
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.101.0
-	github.com/crossplane/crossplane-runtime/v2 v2.2.1
+	github.com/crossplane/crossplane-runtime/v2 v2.3.2
 	github.com/crossplane/crossplane-tools v0.0.0-20251017183449-dd4517244339
 	github.com/pkg/errors v0.9.1
 	k8s.io/api v0.36.1
