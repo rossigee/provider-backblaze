@@ -32,7 +32,7 @@ import (
 
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
+	xpv1 "github.com/crossplane/crossplane/apis/v2/core/v2"
 
 	backblazev1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1"
 	apisv1beta1 "github.com/rossigee/provider-backblaze/apis/v1beta1"
