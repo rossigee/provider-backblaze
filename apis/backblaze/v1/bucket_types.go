@@ -19,6 +19,7 @@ package v1
 import (
 	"reflect"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -119,14 +120,32 @@ type BucketObservation struct {
 
 // A BucketSpec defines the desired state of a Bucket.
 type BucketSpec struct {
-	xpv1.ResourceSpec `json:",inline"`
-	ForProvider       BucketParameters `json:"forProvider"`
+	DeletionPolicy                   xpv1.DeletionPolicy `json:"deletionPolicy,omitempty"`
+	ManagementPolicies               xpv1.ManagementPolicies `json:"managementPolicies,omitempty"`
+	ProviderConfigReference          *xpv1.Reference `json:"providerConfigReference,omitempty"`
+	WriteConnectionSecretToReference *xpv1.SecretReference `json:"writeConnectionSecretToRef,omitempty"`
+	ForProvider                      BucketParameters `json:"forProvider"`
 }
 
 // A BucketStatus represents the observed state of a Bucket.
 type BucketStatus struct {
-	xpv1.ResourceStatus `json:",inline"`
-	AtProvider          BucketObservation `json:"atProvider,omitempty"`
+	Conditions   []xpv1.Condition `json:"conditions,omitempty"`
+	AtProvider   BucketObservation `json:"atProvider,omitempty"`
+}
+
+// GetCondition returns the status condition by type.
+func (s *BucketStatus) GetCondition(ct xpv1.ConditionType) xpv1.Condition {
+	for _, c := range s.Conditions {
+		if c.Type == ct {
+			return c
+		}
+	}
+	return xpv1.Condition{Type: ct, Status: corev1.ConditionUnknown}
+}
+
+// SetConditions sets the status conditions.
+func (s *BucketStatus) SetConditions(c ...xpv1.Condition) {
+	s.Conditions = c
 }
 
 // +kubebuilder:object:root=true
@@ -156,6 +175,56 @@ type BucketList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:",inline"`
 	Items           []Bucket `json:"items"`
+}
+
+// GetCondition returns the status condition by type.
+func (b *Bucket) GetCondition(ct xpv1.ConditionType) xpv1.Condition {
+	return b.Status.GetCondition(ct)
+}
+
+// SetConditions sets the status conditions.
+func (b *Bucket) SetConditions(c ...xpv1.Condition) {
+	b.Status.SetConditions(c...)
+}
+
+// GetDeletionPolicy returns the deletion policy.
+func (b *Bucket) GetDeletionPolicy() xpv1.DeletionPolicy {
+	return b.Spec.DeletionPolicy
+}
+
+// SetDeletionPolicy sets the deletion policy.
+func (b *Bucket) SetDeletionPolicy(dp xpv1.DeletionPolicy) {
+	b.Spec.DeletionPolicy = dp
+}
+
+// GetManagementPolicies returns the management policies.
+func (b *Bucket) GetManagementPolicies() xpv1.ManagementPolicies {
+	return b.Spec.ManagementPolicies
+}
+
+// SetManagementPolicies sets the management policies.
+func (b *Bucket) SetManagementPolicies(mp xpv1.ManagementPolicies) {
+	b.Spec.ManagementPolicies = mp
+}
+
+// GetProviderConfigReference returns the provider config reference.
+func (b *Bucket) GetProviderConfigReference() *xpv1.Reference {
+	return b.Spec.ProviderConfigReference
+}
+
+// SetProviderConfigReference sets the provider config reference.
+func (b *Bucket) SetProviderConfigReference(r *xpv1.Reference) {
+	b.Spec.ProviderConfigReference = r
+}
+
+// GetWriteConnectionSecretToReference returns the write connection secret to reference.
+func (b *Bucket) GetWriteConnectionSecretToReference() *xpv1.SecretReference {
+	return b.Spec.WriteConnectionSecretToReference
+}
+
+// SetWriteConnectionSecretToReference sets the write connection secret to reference.
+func (b *Bucket) SetWriteConnectionSecretToReference(r *xpv1.SecretReference) {
+	b.Spec.WriteConnectionSecretToReference = r
 }
 
 // Bucket type metadata.

@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.19.0
+    controller-gen.kubebuilder.io/version: v0.21.0
   name: users.backblaze.crossplane.io
 spec:
   group: backblaze.crossplane.io
@@ -61,15 +61,9 @@ spec:
             description: A UserSpec defines the desired state of a User.
             properties:
               deletionPolicy:
-                default: Delete
                 description: |-
-                  DeletionPolicy specifies what will happen to the underlying external
-                  when this managed resource is deleted - either "Delete" or "Orphan" the
-                  external resource.
-                  This field is planned to be deprecated in favor of the ManagementPolicies
-                  field in a future release. Currently, both could be set independently and
-                  non-default values would be honored if the feature flag is enabled.
-                  See the design doc for more information: https://github.com/crossplane/crossplane/blob/499895a25d1a1a0ba1604944ef98ac7a1a71f197/design/design-doc-observe-only-resources.md?plain=1#L223
+                  A DeletionPolicy determines what should happen to the underlying external
+                  resource when a managed resource is deleted.
                 enum:
                 - Orphan
                 - Delete
@@ -125,19 +119,9 @@ spec:
                 - writeSecretToRef
                 type: object
               managementPolicies:
-                default:
-                - '*'
                 description: |-
-                  THIS IS A BETA FIELD. It is on by default but can be opted out
-                  through a Crossplane feature flag.
-                  ManagementPolicies specify the array of actions Crossplane is allowed to
-                  take on the managed and external resources.
-                  This field is planned to replace the DeletionPolicy field in a future
-                  release. Currently, both could be set independently and non-default
-                  values would be honored if the feature flag is enabled. If both are
-                  custom, the DeletionPolicy field will be ignored.
-                  See the design doc for more information: https://github.com/crossplane/crossplane/blob/499895a25d1a1a0ba1604944ef98ac7a1a71f197/design/design-doc-observe-only-resources.md?plain=1#L223
-                  and this one: https://github.com/crossplane/crossplane/blob/444267e84783136daa93568b364a5f01228cacbe/design/one-pager-ignore-changes.md
+                  ManagementPolicies determine how should Crossplane controllers manage an
+                  external resource through an array of ManagementActions.
                 items:
                   description: |-
                     A ManagementAction represents an action that the Crossplane controllers
@@ -151,13 +135,8 @@ spec:
                   - '*'
                   type: string
                 type: array
-              providerConfigRef:
-                default:
-                  name: default
-                description: |-
-                  ProviderConfigReference specifies how the provider that will be used to
-                  create, observe, update, and delete this managed resource should be
-                  configured.
+              providerConfigReference:
+                description: A Reference to a named object.
                 properties:
                   name:
                     description: Name of the referenced object.
@@ -191,11 +170,8 @@ spec:
                 - name
                 type: object
               writeConnectionSecretToRef:
-                description: |-
-                  WriteConnectionSecretToReference specifies the namespace and name of a
-                  Secret to which any connection details for this managed resource should
-                  be written. Connection details frequently include the endpoint, username,
-                  and password required to connect to the managed resource.
+                description: A SecretReference is a reference to a secret in an arbitrary
+                  namespace.
                 properties:
                   name:
                     description: Name of the secret.
@@ -245,7 +221,6 @@ spec:
                     type: string
                 type: object
               conditions:
-                description: Conditions of the resource.
                 items:
                   description: A Condition that may apply to a resource.
                   properties:
@@ -287,16 +262,6 @@ spec:
                   - type
                   type: object
                 type: array
-                x-kubernetes-list-map-keys:
-                - type
-                x-kubernetes-list-type: map
-              observedGeneration:
-                description: |-
-                  ObservedGeneration is the latest metadata.generation
-                  which resulted in either a ready state, or stalled due to error
-                  it can not recover from without human intervention.
-                format: int64
-                type: integer
             type: object
         required:
         - spec

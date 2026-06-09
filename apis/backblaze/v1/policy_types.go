@@ -19,6 +19,7 @@ package v1
 import (
 	"reflect"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -63,14 +64,32 @@ type PolicyObservation struct {
 
 // A PolicySpec defines the desired state of a Policy.
 type PolicySpec struct {
-	xpv1.ResourceSpec `json:",inline"`
-	ForProvider       PolicyParameters `json:"forProvider"`
+	DeletionPolicy                   xpv1.DeletionPolicy `json:"deletionPolicy,omitempty"`
+	ManagementPolicies               xpv1.ManagementPolicies `json:"managementPolicies,omitempty"`
+	ProviderConfigReference          *xpv1.Reference `json:"providerConfigReference,omitempty"`
+	WriteConnectionSecretToReference *xpv1.SecretReference `json:"writeConnectionSecretToRef,omitempty"`
+	ForProvider                      PolicyParameters `json:"forProvider"`
 }
 
 // A PolicyStatus represents the observed state of a Policy.
 type PolicyStatus struct {
-	xpv1.ResourceStatus `json:",inline"`
-	AtProvider          PolicyObservation `json:"atProvider,omitempty"`
+	Conditions   []xpv1.Condition `json:"conditions,omitempty"`
+	AtProvider   PolicyObservation `json:"atProvider,omitempty"`
+}
+
+// GetCondition returns the status condition by type.
+func (s *PolicyStatus) GetCondition(ct xpv1.ConditionType) xpv1.Condition {
+	for _, c := range s.Conditions {
+		if c.Type == ct {
+			return c
+		}
+	}
+	return xpv1.Condition{Type: ct, Status: corev1.ConditionUnknown}
+}
+
+// SetConditions sets the status conditions.
+func (s *PolicyStatus) SetConditions(c ...xpv1.Condition) {
+	s.Conditions = c
 }
 
 // +kubebuilder:object:root=true
@@ -99,6 +118,56 @@ type PolicyList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:",inline"`
 	Items           []Policy `json:"items"`
+}
+
+// GetCondition returns the status condition by type.
+func (p *Policy) GetCondition(ct xpv1.ConditionType) xpv1.Condition {
+	return p.Status.GetCondition(ct)
+}
+
+// SetConditions sets the status conditions.
+func (p *Policy) SetConditions(c ...xpv1.Condition) {
+	p.Status.SetConditions(c...)
+}
+
+// GetDeletionPolicy returns the deletion policy.
+func (p *Policy) GetDeletionPolicy() xpv1.DeletionPolicy {
+	return p.Spec.DeletionPolicy
+}
+
+// SetDeletionPolicy sets the deletion policy.
+func (p *Policy) SetDeletionPolicy(dp xpv1.DeletionPolicy) {
+	p.Spec.DeletionPolicy = dp
+}
+
+// GetManagementPolicies returns the management policies.
+func (p *Policy) GetManagementPolicies() xpv1.ManagementPolicies {
+	return p.Spec.ManagementPolicies
+}
+
+// SetManagementPolicies sets the management policies.
+func (p *Policy) SetManagementPolicies(mp xpv1.ManagementPolicies) {
+	p.Spec.ManagementPolicies = mp
+}
+
+// GetProviderConfigReference returns the provider config reference.
+func (p *Policy) GetProviderConfigReference() *xpv1.Reference {
+	return p.Spec.ProviderConfigReference
+}
+
+// SetProviderConfigReference sets the provider config reference.
+func (p *Policy) SetProviderConfigReference(r *xpv1.Reference) {
+	p.Spec.ProviderConfigReference = r
+}
+
+// GetWriteConnectionSecretToReference returns the write connection secret to reference.
+func (p *Policy) GetWriteConnectionSecretToReference() *xpv1.SecretReference {
+	return p.Spec.WriteConnectionSecretToReference
+}
+
+// SetWriteConnectionSecretToReference sets the write connection secret to reference.
+func (p *Policy) SetWriteConnectionSecretToReference(r *xpv1.SecretReference) {
+	p.Spec.WriteConnectionSecretToReference = r
 }
 
 // Policy type metadata.

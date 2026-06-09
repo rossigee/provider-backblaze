@@ -19,6 +19,7 @@ package v1
 import (
 	"reflect"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -76,14 +77,32 @@ type UserObservation struct {
 
 // A UserSpec defines the desired state of a User.
 type UserSpec struct {
-	xpv1.ResourceSpec `json:",inline"`
-	ForProvider       UserParameters `json:"forProvider"`
+	DeletionPolicy                   xpv1.DeletionPolicy `json:"deletionPolicy,omitempty"`
+	ManagementPolicies               xpv1.ManagementPolicies `json:"managementPolicies,omitempty"`
+	ProviderConfigReference          *xpv1.Reference `json:"providerConfigReference,omitempty"`
+	WriteConnectionSecretToReference *xpv1.SecretReference `json:"writeConnectionSecretToRef,omitempty"`
+	ForProvider                      UserParameters `json:"forProvider"`
 }
 
 // A UserStatus represents the observed state of a User.
 type UserStatus struct {
-	xpv1.ResourceStatus `json:",inline"`
-	AtProvider          UserObservation `json:"atProvider,omitempty"`
+	Conditions   []xpv1.Condition `json:"conditions,omitempty"`
+	AtProvider   UserObservation `json:"atProvider,omitempty"`
+}
+
+// GetCondition returns the status condition by type.
+func (s *UserStatus) GetCondition(ct xpv1.ConditionType) xpv1.Condition {
+	for _, c := range s.Conditions {
+		if c.Type == ct {
+			return c
+		}
+	}
+	return xpv1.Condition{Type: ct, Status: corev1.ConditionUnknown}
+}
+
+// SetConditions sets the status conditions.
+func (s *UserStatus) SetConditions(c ...xpv1.Condition) {
+	s.Conditions = c
 }
 
 // +kubebuilder:object:root=true
@@ -113,6 +132,56 @@ type UserList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:",inline"`
 	Items           []User `json:"items"`
+}
+
+// GetCondition returns the status condition by type.
+func (u *User) GetCondition(ct xpv1.ConditionType) xpv1.Condition {
+	return u.Status.GetCondition(ct)
+}
+
+// SetConditions sets the status conditions.
+func (u *User) SetConditions(c ...xpv1.Condition) {
+	u.Status.SetConditions(c...)
+}
+
+// GetDeletionPolicy returns the deletion policy.
+func (u *User) GetDeletionPolicy() xpv1.DeletionPolicy {
+	return u.Spec.DeletionPolicy
+}
+
+// SetDeletionPolicy sets the deletion policy.
+func (u *User) SetDeletionPolicy(dp xpv1.DeletionPolicy) {
+	u.Spec.DeletionPolicy = dp
+}
+
+// GetManagementPolicies returns the management policies.
+func (u *User) GetManagementPolicies() xpv1.ManagementPolicies {
+	return u.Spec.ManagementPolicies
+}
+
+// SetManagementPolicies sets the management policies.
+func (u *User) SetManagementPolicies(mp xpv1.ManagementPolicies) {
+	u.Spec.ManagementPolicies = mp
+}
+
+// GetProviderConfigReference returns the provider config reference.
+func (u *User) GetProviderConfigReference() *xpv1.Reference {
+	return u.Spec.ProviderConfigReference
+}
+
+// SetProviderConfigReference sets the provider config reference.
+func (u *User) SetProviderConfigReference(r *xpv1.Reference) {
+	u.Spec.ProviderConfigReference = r
+}
+
+// GetWriteConnectionSecretToReference returns the write connection secret to reference.
+func (u *User) GetWriteConnectionSecretToReference() *xpv1.SecretReference {
+	return u.Spec.WriteConnectionSecretToReference
+}
+
+// SetWriteConnectionSecretToReference sets the write connection secret to reference.
+func (u *User) SetWriteConnectionSecretToReference(r *xpv1.SecretReference) {
+	u.Spec.WriteConnectionSecretToReference = r
 }
 
 // User type metadata.
