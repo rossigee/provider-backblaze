@@ -56,13 +56,11 @@ func main() {
 	)
 	kingpin.MustParse(app.Parse(os.Args[1:]))
 
-	shutdownTracing(context.Background())
+	shutdownTracing := tracing.Init("provider-backblaze")
+	defer shutdownTracing(context.Background())
 
 	zl := zap.New(zap.UseDevMode(*debug))
 	log := logging.NewLogrLogger(zl.WithName("provider-backblaze"))
-
-	shutdownTracing := tracing.Init("provider-backblaze")
-	defer shutdownTracing(context.Background())
 
 	// Always set the controller-runtime logger to prevent logging errors
 	// Use info level for non-debug mode to reduce verbosity
