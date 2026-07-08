@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -36,6 +37,7 @@ import (
 	"github.com/rossigee/provider-backblaze/apis"
 	backblazecontroller "github.com/rossigee/provider-backblaze/internal/controller"
 	"github.com/rossigee/provider-backblaze/internal/features"
+	"github.com/rossigee/provider-backblaze/internal/tracing"
 	"github.com/rossigee/provider-backblaze/internal/version"
 )
 
@@ -54,8 +56,13 @@ func main() {
 	)
 	kingpin.MustParse(app.Parse(os.Args[1:]))
 
+	shutdownTracing(context.Background())
+
 	zl := zap.New(zap.UseDevMode(*debug))
 	log := logging.NewLogrLogger(zl.WithName("provider-backblaze"))
+
+	shutdownTracing := tracing.Init("provider-backblaze")
+	defer shutdownTracing(context.Background())
 
 	// Always set the controller-runtime logger to prevent logging errors
 	// Use info level for non-debug mode to reduce verbosity
