@@ -22,32 +22,33 @@ import (
 	"strings"
 	"time"
 
+	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
+	xpv1 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"github.com/pkg/errors"
+
+	backblazev1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1"
+	apisv1beta1 "github.com/rossigee/provider-backblaze/apis/v1beta1"
+	"github.com/rossigee/provider-backblaze/internal/clients"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
-	xpv1 "github.com/crossplane/crossplane/apis/v2/core/v2"
-
-	backblazev1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1"
-	apisv1beta1 "github.com/rossigee/provider-backblaze/apis/v1beta1"
-	"github.com/rossigee/provider-backblaze/internal/clients"
 )
 
 const (
-	errNotUser                = "managed resource is not a User custom resource"
-	errTrackPCUsage           = "cannot track ProviderConfig usage"
-	errGetProviderConfig      = "cannot get referenced ProviderConfig"
-	errCreateBackblazeClient  = "cannot create Backblaze client"
-	errCreateApplicationKey   = "cannot create application key"
-	errDeleteApplicationKey   = "cannot delete application key"
-	errGetApplicationKey      = "cannot get application key"
-	errWriteSecret            = "cannot write application key secret"
+	errNotUser               = "managed resource is not a User custom resource"
+	errTrackPCUsage          = "cannot track ProviderConfig usage"
+	errGetProviderConfig     = "cannot get referenced ProviderConfig"
+	errCreateBackblazeClient = "cannot create Backblaze client"
+	errCreateApplicationKey  = "cannot create application key"
+	errDeleteApplicationKey  = "cannot delete application key"
+	errGetApplicationKey     = "cannot get application key"
+	errWriteSecret           = "cannot write application key secret"
 )
 
 // SetupUser adds a controller that reconciles User managed resources.

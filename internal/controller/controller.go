@@ -18,13 +18,11 @@ limitations under the License.
 package controller
 
 import (
-	ctrl "sigs.k8s.io/controller-runtime"
-
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
-
 	"github.com/rossigee/provider-backblaze/internal/controller/bucket"
 	"github.com/rossigee/provider-backblaze/internal/controller/policy"
 	"github.com/rossigee/provider-backblaze/internal/controller/user"
+	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 // Setup sets up all controllers for the Backblaze provider.

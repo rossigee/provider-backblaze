@@ -21,22 +21,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-	"time"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/pkg/errors"
-	corev1 "k8s.io/api/core/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
-
+	"github.com/pkg/errors"
 	"github.com/rossigee/provider-backblaze/apis/v1beta1"
+	"io"
+	corev1 "k8s.io/api/core/v1"
+	"net/http"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"time"
 )
 
 const (
@@ -63,14 +60,14 @@ type BackblazeClient struct {
 	Endpoint string
 
 	// B2 Native API support
-	HTTPClient        *http.Client
-	ApplicationKeyID  string
-	ApplicationKey    string
-	AuthToken         string
-	APIURL            string
-	DownloadURL       string
-	AccountID         string
-	tokenExpiration   time.Time
+	HTTPClient       *http.Client
+	ApplicationKeyID string
+	ApplicationKey   string
+	AuthToken        string
+	APIURL           string
+	DownloadURL      string
+	AccountID        string
+	tokenExpiration  time.Time
 }
 
 // Config contains configuration for connecting to Backblaze B2
@@ -328,24 +325,24 @@ type B2AuthorizeAccountResponse struct {
 
 // B2CreateKeyRequest represents the request to create an application key
 type B2CreateKeyRequest struct {
-	AccountID               string   `json:"accountId"`
-	Capabilities            []string `json:"capabilities"`
-	KeyName                 string   `json:"keyName"`
-	ValidDurationInSeconds  *int     `json:"validDurationInSeconds,omitempty"`
-	BucketID                string   `json:"bucketId,omitempty"`
-	NamePrefix              string   `json:"namePrefix,omitempty"`
+	AccountID              string   `json:"accountId"`
+	Capabilities           []string `json:"capabilities"`
+	KeyName                string   `json:"keyName"`
+	ValidDurationInSeconds *int     `json:"validDurationInSeconds,omitempty"`
+	BucketID               string   `json:"bucketId,omitempty"`
+	NamePrefix             string   `json:"namePrefix,omitempty"`
 }
 
 // B2CreateKeyResponse represents the response from create key
 type B2CreateKeyResponse struct {
-	ApplicationKeyID        string    `json:"applicationKeyId"`
-	ApplicationKey          string    `json:"applicationKey"`
-	KeyName                 string    `json:"keyName"`
-	Capabilities            []string  `json:"capabilities"`
-	AccountID               string    `json:"accountId"`
-	ExpirationTimestamp     *int64    `json:"expirationTimestamp,omitempty"`
-	BucketID                string    `json:"bucketId,omitempty"`
-	NamePrefix              string    `json:"namePrefix,omitempty"`
+	ApplicationKeyID    string   `json:"applicationKeyId"`
+	ApplicationKey      string   `json:"applicationKey"`
+	KeyName             string   `json:"keyName"`
+	Capabilities        []string `json:"capabilities"`
+	AccountID           string   `json:"accountId"`
+	ExpirationTimestamp *int64   `json:"expirationTimestamp,omitempty"`
+	BucketID            string   `json:"bucketId,omitempty"`
+	NamePrefix          string   `json:"namePrefix,omitempty"`
 }
 
 // B2DeleteKeyRequest represents the request to delete an application key
@@ -355,21 +352,21 @@ type B2DeleteKeyRequest struct {
 
 // B2ListKeysRequest represents the request to list application keys
 type B2ListKeysRequest struct {
-	AccountID  string `json:"accountId"`
-	MaxKeyCount int   `json:"maxKeyCount,omitempty"`
+	AccountID             string `json:"accountId"`
+	MaxKeyCount           int    `json:"maxKeyCount,omitempty"`
 	StartApplicationKeyID string `json:"startApplicationKeyId,omitempty"`
 }
 
 // B2ListKeysResponse represents the response from list keys
 type B2ListKeysResponse struct {
 	Keys []struct {
-		ApplicationKeyID        string   `json:"applicationKeyId"`
-		KeyName                 string   `json:"keyName"`
-		Capabilities            []string `json:"capabilities"`
-		AccountID               string   `json:"accountId"`
-		ExpirationTimestamp     *int64   `json:"expirationTimestamp,omitempty"`
-		BucketID                string   `json:"bucketId,omitempty"`
-		NamePrefix              string   `json:"namePrefix,omitempty"`
+		ApplicationKeyID    string   `json:"applicationKeyId"`
+		KeyName             string   `json:"keyName"`
+		Capabilities        []string `json:"capabilities"`
+		AccountID           string   `json:"accountId"`
+		ExpirationTimestamp *int64   `json:"expirationTimestamp,omitempty"`
+		BucketID            string   `json:"bucketId,omitempty"`
+		NamePrefix          string   `json:"namePrefix,omitempty"`
 	} `json:"keys"`
 	NextApplicationKeyID string `json:"nextApplicationKeyId,omitempty"`
 }
@@ -435,12 +432,12 @@ func (c *BackblazeClient) CreateApplicationKey(ctx context.Context, keyName stri
 	}
 
 	req := B2CreateKeyRequest{
-		AccountID:               c.AccountID,
-		KeyName:                 keyName,
-		Capabilities:            capabilities,
-		ValidDurationInSeconds:  validDurationInSeconds,
-		BucketID:                bucketID,
-		NamePrefix:              namePrefix,
+		AccountID:              c.AccountID,
+		KeyName:                keyName,
+		Capabilities:           capabilities,
+		ValidDurationInSeconds: validDurationInSeconds,
+		BucketID:               bucketID,
+		NamePrefix:             namePrefix,
 	}
 
 	reqBody, err := json.Marshal(req)
@@ -546,8 +543,8 @@ func (c *BackblazeClient) GetApplicationKey(ctx context.Context, applicationKeyI
 			return nil, errors.Wrap(err, "failed to execute HTTP request")
 		}
 		defer func() {
-		_ = resp.Body.Close()
-	}()
+			_ = resp.Body.Close()
+		}()
 
 		if resp.StatusCode != http.StatusOK {
 			body, _ := io.ReadAll(resp.Body)

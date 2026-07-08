@@ -21,9 +21,10 @@ import (
 	"testing"
 
 	"github.com/pkg/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	backblazev1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // BackblazeClientInterface defines the interface for Backblaze client operations

@@ -21,22 +21,23 @@ import (
 	"strings"
 	"time"
 
+	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
+	xpv1 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"github.com/pkg/errors"
+
+	backblazev1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1"
+	apisv1beta1 "github.com/rossigee/provider-backblaze/apis/v1beta1"
+	"github.com/rossigee/provider-backblaze/internal/clients"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
-	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
-	xpv1 "github.com/crossplane/crossplane/apis/v2/core/v2"
-
-	backblazev1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1"
-	apisv1beta1 "github.com/rossigee/provider-backblaze/apis/v1beta1"
-	"github.com/rossigee/provider-backblaze/internal/clients"
 )
 
 const (
@@ -50,7 +51,6 @@ const (
 	errObserveBucket = "cannot observe bucket"
 )
 
-
 // SetupBucket adds a controller that reconciles Bucket managed resources.
 func SetupBucket(mgr ctrl.Manager, o controller.Options) error {
 	r := &BucketReconciler{
@@ -63,7 +63,6 @@ func SetupBucket(mgr ctrl.Manager, o controller.Options) error {
 		Watches(&apisv1beta1.ProviderConfig{}, handler.Funcs{}).
 		Complete(r)
 }
-
 
 // BucketReconciler reconciles a Bucket object
 type BucketReconciler struct {

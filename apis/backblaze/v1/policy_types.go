@@ -1,12 +1,9 @@
 /*
 Copyright 2025 The Crossplane Authors.
-
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-
     http://www.apache.org/licenses/LICENSE-2.0
-
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -31,16 +28,13 @@ type PolicyParameters struct {
 	// PolicyName is the name for this policy.
 	// +optional
 	PolicyName *string `json:"policyName,omitempty"`
-
 	// Description provides a human-readable description of the policy.
 	// +optional
 	Description *string `json:"description,omitempty"`
-
 	// AllowBucket creates a simple policy that allows all operations for the specified bucket.
 	// This is mutually exclusive with RawPolicy.
 	// +optional
 	AllowBucket *string `json:"allowBucket,omitempty"`
-
 	// RawPolicy contains the complete S3-compatible policy document as JSON.
 	// This is mutually exclusive with AllowBucket.
 	// +optional
@@ -51,30 +45,27 @@ type PolicyParameters struct {
 type PolicyObservation struct {
 	// PolicyName is the name of the policy.
 	PolicyName string `json:"policyName,omitempty"`
-
 	// PolicyDocument is the actual policy document stored.
 	PolicyDocument string `json:"policyDocument,omitempty"`
-
 	// PolicyID is the unique identifier for the policy (if applicable).
 	PolicyID string `json:"policyId,omitempty"`
-
 	// CreationTime is when the policy was created.
 	CreationTime *metav1.Time `json:"creationTime,omitempty"`
 }
 
 // A PolicySpec defines the desired state of a Policy.
 type PolicySpec struct {
-	DeletionPolicy                   xpv1.DeletionPolicy `json:"deletionPolicy,omitempty"`
+	DeletionPolicy                   xpv1.DeletionPolicy     `json:"deletionPolicy,omitempty"`
 	ManagementPolicies               xpv1.ManagementPolicies `json:"managementPolicies,omitempty"`
-	ProviderConfigReference          *xpv1.Reference `json:"providerConfigReference,omitempty"`
-	WriteConnectionSecretToReference *xpv1.SecretReference `json:"writeConnectionSecretToRef,omitempty"`
-	ForProvider                      PolicyParameters `json:"forProvider"`
+	ProviderConfigReference          *xpv1.Reference         `json:"providerConfigReference,omitempty"`
+	WriteConnectionSecretToReference *xpv1.SecretReference   `json:"writeConnectionSecretToRef,omitempty"`
+	ForProvider                      PolicyParameters        `json:"forProvider"`
 }
 
 // A PolicyStatus represents the observed state of a Policy.
 type PolicyStatus struct {
-	Conditions   []xpv1.Condition `json:"conditions,omitempty"`
-	AtProvider   PolicyObservation `json:"atProvider,omitempty"`
+	Conditions []xpv1.Condition  `json:"conditions,omitempty"`
+	AtProvider PolicyObservation `json:"atProvider,omitempty"`
 }
 
 // GetCondition returns the status condition by type.
@@ -106,13 +97,11 @@ func (s *PolicyStatus) SetConditions(c ...xpv1.Condition) {
 type Policy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:",inline"`
-
-	Spec   PolicySpec   `json:"spec"`
-	Status PolicyStatus `json:"status,omitempty"`
+	Spec              PolicySpec   `json:"spec"`
+	Status            PolicyStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
-
 // PolicyList contains a list of Policy
 type PolicyList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -177,10 +166,6 @@ var (
 	PolicyKindAPIVersion   = PolicyKind + "." + SchemeGroupVersion.String()
 	PolicyGroupVersionKind = SchemeGroupVersion.WithKind(PolicyKind)
 )
-
-func init() {
-	SchemeBuilder.Register(&Policy{}, &PolicyList{})
-}
 
 // GetPolicyName returns the policy name from the Policy resource.
 func (mg *Policy) GetPolicyName() string {

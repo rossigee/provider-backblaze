@@ -19,11 +19,10 @@ package v1beta1
 import (
 	"reflect"
 
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"sigs.k8s.io/controller-runtime/pkg/scheme"
 )
 
-// Package type metadata.
 const (
 	Group   = "backblaze.crossplane.io"
 	Version = "v1beta1"
@@ -35,10 +34,8 @@ var (
 
 	// SchemeBuilder is used to add go types to the GroupVersionKind scheme
 	//nolint:staticcheck
-	SchemeBuilder = &scheme.Builder{GroupVersion: SchemeGroupVersion}
-
-	// AddToScheme adds the types in this group-version to the given scheme.
-	AddToScheme = SchemeBuilder.AddToScheme
+	SchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
+	AddToScheme   = SchemeBuilder.AddToScheme
 )
 
 // ProviderConfig type metadata.
@@ -52,17 +49,26 @@ var (
 // ProviderConfigUsage type metadata.
 var (
 	ProviderConfigUsageKind             = reflect.TypeOf(ProviderConfigUsage{}).Name()
-	ProviderConfigUsageGroupKind        = schema.GroupKind{Group: Group, Kind: ProviderConfigUsageKind}.String()
+	ProviderConfigUsageGroupKind        = schema.GroupKind{Group: Group, Kind: ProviderConfigUsageKind}
 	ProviderConfigUsageKindAPIVersion   = ProviderConfigUsageKind + "." + SchemeGroupVersion.String()
 	ProviderConfigUsageGroupVersionKind = SchemeGroupVersion.WithKind(ProviderConfigUsageKind)
 
 	ProviderConfigUsageListKind             = reflect.TypeOf(ProviderConfigUsageList{}).Name()
-	ProviderConfigUsageListGroupKind        = schema.GroupKind{Group: Group, Kind: ProviderConfigUsageListKind}.String()
+	ProviderConfigUsageListGroupKind        = schema.GroupKind{Group: Group, Kind: ProviderConfigUsageListKind}
 	ProviderConfigUsageListKindAPIVersion   = ProviderConfigUsageListKind + "." + SchemeGroupVersion.String()
 	ProviderConfigUsageListGroupVersionKind = SchemeGroupVersion.WithKind(ProviderConfigUsageListKind)
 )
 
+func addKnownTypes(s *runtime.Scheme) error {
+	s.AddKnownTypes(SchemeGroupVersion,
+		&ProviderConfig{},
+		&ProviderConfigList{},
+		&ProviderConfigUsage{},
+		&ProviderConfigUsageList{},
+	)
+	return nil
+}
+
 func init() {
-	SchemeBuilder.Register(&ProviderConfig{}, &ProviderConfigList{})
-	SchemeBuilder.Register(&ProviderConfigUsage{}, &ProviderConfigUsageList{})
+	SchemeBuilder.Register(addKnownTypes)
 }

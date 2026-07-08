@@ -19,17 +19,16 @@ package integration
 import (
 	"context"
 	"fmt"
+	"github.com/rossigee/provider-backblaze/internal/clients"
 	"os"
 	"testing"
 	"time"
-
-	"github.com/rossigee/provider-backblaze/internal/clients"
 )
 
 // Integration test configuration
 const (
-	testTimeout     = 5 * time.Minute
-	cleanupTimeout  = 30 * time.Second
+	testTimeout      = 5 * time.Minute
+	cleanupTimeout   = 30 * time.Second
 	testBucketPrefix = "provider-backblaze-test"
 )
 
@@ -47,8 +46,8 @@ func setupTestConfig(t *testing.T) *TestConfig {
 	config := &TestConfig{
 		ApplicationKeyID: os.Getenv("B2_APPLICATION_KEY_ID"),
 		ApplicationKey:   os.Getenv("B2_APPLICATION_KEY"),
-		Region:          os.Getenv("B2_REGION"),
-		SkipCleanup:     os.Getenv("SKIP_CLEANUP") == "true",
+		Region:           os.Getenv("B2_REGION"),
+		SkipCleanup:      os.Getenv("SKIP_CLEANUP") == "true",
 	}
 
 	// Set defaults
@@ -72,7 +71,7 @@ func setupBackblazeClient(t *testing.T, config *TestConfig) *clients.BackblazeCl
 	clientConfig := clients.Config{
 		ApplicationKeyID: config.ApplicationKeyID,
 		ApplicationKey:   config.ApplicationKey,
-		Region:          config.Region,
+		Region:           config.Region,
 	}
 
 	client, err := clients.NewBackblazeClient(clientConfig)
@@ -121,7 +120,7 @@ func TestBucketLifecycleIntegration(t *testing.T) {
 			t.Logf("Cleaning up test bucket: %s", bucketName)
 			cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), cleanupTimeout)
 			defer cleanupCancel()
-			
+
 			// Try to delete all objects first
 			_ = client.DeleteAllObjectsInBucket(cleanupCtx, bucketName)
 			// Then delete the bucket
@@ -225,7 +224,7 @@ func TestApplicationKeyLifecycleIntegration(t *testing.T) {
 
 	t.Run("CreateApplicationKey", func(t *testing.T) {
 		capabilities := []string{"listBuckets", "listFiles", "readFiles"}
-		
+
 		key, err := client.CreateApplicationKey(ctx, keyName, capabilities, "", "", nil)
 		if err != nil {
 			t.Fatalf("Failed to create application key: %v", err)
@@ -306,7 +305,7 @@ func TestBucketPolicyIntegration(t *testing.T) {
 			t.Logf("Cleaning up test bucket and policy: %s", bucketName)
 			cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), cleanupTimeout)
 			defer cleanupCancel()
-			
+
 			// Delete policy first, then bucket
 			_ = client.DeleteBucketPolicy(cleanupCtx, bucketName)
 			_ = client.DeleteAllObjectsInBucket(cleanupCtx, bucketName)
@@ -389,7 +388,7 @@ func TestB2AuthenticationIntegration(t *testing.T) {
 		// Test B2 native API authentication by creating a key
 		keyName := fmt.Sprintf("auth-test-key-%d", time.Now().Unix())
 		capabilities := []string{"listBuckets"}
-		
+
 		key, err := client.CreateApplicationKey(ctx, keyName, capabilities, "", "", nil)
 		if err != nil {
 			t.Fatalf("Failed to authenticate with B2 API: %v", err)
@@ -432,7 +431,7 @@ func TestErrorHandlingIntegration(t *testing.T) {
 
 	t.Run("NonExistentBucket", func(t *testing.T) {
 		nonExistentBucket := "this-bucket-should-not-exist-12345"
-		
+
 		exists, err := client.BucketExists(ctx, nonExistentBucket)
 		if err != nil {
 			t.Fatalf("BucketExists should handle non-existent buckets gracefully: %v", err)
@@ -444,7 +443,7 @@ func TestErrorHandlingIntegration(t *testing.T) {
 
 	t.Run("NonExistentApplicationKey", func(t *testing.T) {
 		nonExistentKeyID := "this-key-should-not-exist-12345"
-		
+
 		_, err := client.GetApplicationKey(ctx, nonExistentKeyID)
 		if err == nil {
 			t.Error("GetApplicationKey should return error for non-existent key")
@@ -456,7 +455,7 @@ func TestErrorHandlingIntegration(t *testing.T) {
 
 	t.Run("NonExistentBucketPolicy", func(t *testing.T) {
 		nonExistentBucket := "this-bucket-should-not-exist-12345"
-		
+
 		_, err := client.GetBucketPolicy(ctx, nonExistentBucket)
 		if err == nil {
 			t.Error("GetBucketPolicy should return error for non-existent bucket")
@@ -473,7 +472,7 @@ func BenchmarkBackblazeOperations(b *testing.B) {
 	config := &TestConfig{
 		ApplicationKeyID: os.Getenv("B2_APPLICATION_KEY_ID"),
 		ApplicationKey:   os.Getenv("B2_APPLICATION_KEY"),
-		Region:          os.Getenv("B2_REGION"),
+		Region:           os.Getenv("B2_REGION"),
 	}
 
 	if config.Region == "" {
@@ -487,7 +486,7 @@ func BenchmarkBackblazeOperations(b *testing.B) {
 	clientConfig := clients.Config{
 		ApplicationKeyID: config.ApplicationKeyID,
 		ApplicationKey:   config.ApplicationKey,
-		Region:          config.Region,
+		Region:           config.Region,
 	}
 
 	client, err := clients.NewBackblazeClient(clientConfig)
@@ -528,14 +527,14 @@ func TestMultiRegionBucketIntegration(t *testing.T) {
 
 	// Test with different regions
 	regions := []string{"us-west-001", "us-west-002", "eu-central-003"}
-	
+
 	for _, region := range regions {
 		t.Run(fmt.Sprintf("Region_%s", region), func(t *testing.T) {
 			// Create client for specific region
 			clientConfig := clients.Config{
 				ApplicationKeyID: config.ApplicationKeyID,
 				ApplicationKey:   config.ApplicationKey,
-				Region:          region,
+				Region:           region,
 			}
 
 			client, err := clients.NewBackblazeClient(clientConfig)
@@ -544,7 +543,7 @@ func TestMultiRegionBucketIntegration(t *testing.T) {
 			}
 
 			bucketName := fmt.Sprintf("%s-%s-%d", testBucketPrefix, region, time.Now().Unix())
-			
+
 			// Cleanup function
 			cleanup := func() {
 				if !config.SkipCleanup {
@@ -585,7 +584,7 @@ func TestConcurrentBucketOperations(t *testing.T) {
 
 	const numConcurrentOps = 5
 	bucketNames := make([]string, numConcurrentOps)
-	
+
 	// Generate unique bucket names
 	for i := 0; i < numConcurrentOps; i++ {
 		bucketNames[i] = fmt.Sprintf("%s-concurrent-%d-%d", testBucketPrefix, i, time.Now().Unix())
@@ -597,7 +596,7 @@ func TestConcurrentBucketOperations(t *testing.T) {
 			t.Logf("Cleaning up %d concurrent test buckets", numConcurrentOps)
 			cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), cleanupTimeout)
 			defer cleanupCancel()
-			
+
 			for _, bucketName := range bucketNames {
 				_ = client.DeleteAllObjectsInBucket(cleanupCtx, bucketName)
 				_ = client.DeleteBucket(cleanupCtx, bucketName)
@@ -608,7 +607,7 @@ func TestConcurrentBucketOperations(t *testing.T) {
 
 	t.Run("ConcurrentBucketCreation", func(t *testing.T) {
 		errChan := make(chan error, numConcurrentOps)
-		
+
 		// Create buckets concurrently
 		for i, bucketName := range bucketNames {
 			go func(name string, index int) {
@@ -641,7 +640,7 @@ func TestConcurrentBucketOperations(t *testing.T) {
 
 	t.Run("ConcurrentBucketListAndExists", func(t *testing.T) {
 		errChan := make(chan error, numConcurrentOps*2)
-		
+
 		// Check existence and list buckets concurrently
 		for _, bucketName := range bucketNames {
 			// Check bucket exists
@@ -655,7 +654,7 @@ func TestConcurrentBucketOperations(t *testing.T) {
 					errChan <- nil
 				}
 			}(bucketName)
-			
+
 			// List buckets
 			go func(name string) {
 				buckets, err := client.ListBuckets(ctx)
@@ -788,7 +787,7 @@ func TestBucketPolicyAdvancedIntegration(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Try to put the policy
 			err := client.PutBucketPolicy(ctx, bucketName, tc.policy)
-			
+
 			if tc.shouldError {
 				if err == nil {
 					t.Errorf("Expected error for %s but got none", tc.name)
@@ -845,7 +844,7 @@ func TestBucketS3CompatibilityIntegration(t *testing.T) {
 
 	// Test different bucket types
 	bucketTypes := []string{"allPrivate", "allPublic"}
-	
+
 	for _, bucketType := range bucketTypes {
 		t.Run(fmt.Sprintf("BucketType_%s", bucketType), func(t *testing.T) {
 			// Create bucket with specific type
@@ -902,13 +901,13 @@ func TestApplicationKeyCapabilitiesIntegration(t *testing.T) {
 	defer cancel()
 
 	bucketName := fmt.Sprintf("%s-capabilities-%d", testBucketPrefix, time.Now().Unix())
-	
+
 	// Create test bucket first
 	err := client.CreateBucket(ctx, bucketName, "allPrivate", config.Region)
 	if err != nil {
 		t.Fatalf("Failed to create test bucket: %v", err)
 	}
-	
+
 	// Cleanup function
 	cleanup := func() {
 		if !config.SkipCleanup {
@@ -933,7 +932,7 @@ func TestApplicationKeyCapabilitiesIntegration(t *testing.T) {
 			capabilities: []string{"listBuckets", "listFiles", "readFiles"},
 		},
 		{
-			name:         "WriteOnlyKey", 
+			name:         "WriteOnlyKey",
 			keyName:      fmt.Sprintf("writeonly-key-%d", time.Now().Unix()),
 			capabilities: []string{"listBuckets", "writeFiles"},
 		},
@@ -1000,10 +999,10 @@ func TestBucketRegionValidationIntegration(t *testing.T) {
 
 	// Test region validation and endpoint generation
 	testCases := []struct {
-		name         string
-		region       string
-		expectError  bool
-		description  string
+		name        string
+		region      string
+		expectError bool
+		description string
 	}{
 		{
 			name:        "ValidUSWest001",
@@ -1043,7 +1042,7 @@ func TestBucketRegionValidationIntegration(t *testing.T) {
 			clientConfig := clients.Config{
 				ApplicationKeyID: config.ApplicationKeyID,
 				ApplicationKey:   config.ApplicationKey,
-				Region:          tc.region,
+				Region:           tc.region,
 			}
 
 			client, err := clients.NewBackblazeClient(clientConfig)
@@ -1059,7 +1058,7 @@ func TestBucketRegionValidationIntegration(t *testing.T) {
 			if tc.region == "" {
 				bucketName = fmt.Sprintf("%s-region-test-default-%d", testBucketPrefix, time.Now().Unix())
 			}
-			
+
 			// Cleanup function
 			cleanup := func() {
 				if !config.SkipCleanup {
@@ -1103,7 +1102,7 @@ func TestBucketRegionValidationIntegration(t *testing.T) {
 				if expectedRegion == "" {
 					expectedRegion = "us-west-001" // Default region
 				}
-				t.Logf("Bucket %s created in region %s (requested: %s, reported: %s)", 
+				t.Logf("Bucket %s created in region %s (requested: %s, reported: %s)",
 					bucketName, expectedRegion, tc.region, location)
 			}
 		})
@@ -1213,7 +1212,7 @@ func TestEdgeCasesIntegration(t *testing.T) {
 	t.Run("EmptyApplicationKeyName", func(t *testing.T) {
 		// Test creating application key with empty name
 		capabilities := []string{"listBuckets"}
-		
+
 		_, err := client.CreateApplicationKey(ctx, "", capabilities, "", "", nil)
 		if err == nil {
 			t.Error("Expected application key creation to fail with empty name")
@@ -1226,7 +1225,7 @@ func TestEdgeCasesIntegration(t *testing.T) {
 		// Test creating application key with invalid capabilities
 		keyName := fmt.Sprintf("invalid-caps-key-%d", time.Now().Unix())
 		invalidCapabilities := []string{"invalidCapability", "anotherInvalidOne"}
-		
+
 		_, err := client.CreateApplicationKey(ctx, keyName, invalidCapabilities, "", "", nil)
 		if err == nil {
 			t.Error("Expected application key creation to fail with invalid capabilities")
@@ -1242,14 +1241,14 @@ func TestTimeoutAndRetryIntegration(t *testing.T) {
 	}
 
 	config := setupTestConfig(t)
-	
+
 	t.Run("ShortTimeout", func(t *testing.T) {
 		// Test with very short timeout
 		shortCtx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
 		defer cancel()
 
 		client := setupBackblazeClient(t, config)
-		
+
 		// This should timeout
 		_, err := client.ListBuckets(shortCtx)
 		if err == nil {
@@ -1265,13 +1264,13 @@ func TestTimeoutAndRetryIntegration(t *testing.T) {
 		defer cancel()
 
 		client := setupBackblazeClient(t, config)
-		
+
 		// This should succeed
 		buckets, err := client.ListBuckets(ctx)
 		if err != nil {
 			t.Fatalf("Operation should succeed with reasonable timeout: %v", err)
 		}
-		
+
 		t.Logf("Operation succeeded with %d buckets found", len(buckets))
 	})
 }

@@ -23,34 +23,35 @@ import (
 	"strings"
 	"time"
 
+	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
+	xpv1 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"github.com/pkg/errors"
+
+	backblazev1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1"
+	apisv1beta1 "github.com/rossigee/provider-backblaze/apis/v1beta1"
+	"github.com/rossigee/provider-backblaze/internal/clients"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
-	xpv1 "github.com/crossplane/crossplane/apis/v2/core/v2"
-
-	backblazev1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1"
-	apisv1beta1 "github.com/rossigee/provider-backblaze/apis/v1beta1"
-	"github.com/rossigee/provider-backblaze/internal/clients"
 )
 
 const (
-	errNotPolicy                = "managed resource is not a Policy custom resource"
-	errTrackPCUsage             = "cannot track ProviderConfig usage"
-	errGetProviderConfig        = "cannot get referenced ProviderConfig"
-	errCreateBackblazeClient    = "cannot create Backblaze client"
-	errCreatePolicy             = "cannot create policy"
-	errDeletePolicy             = "cannot delete policy"
-	errGetPolicy                = "cannot get policy"
-	errInvalidPolicyParams      = "invalid policy parameters: specify either allowBucket or rawPolicy, not both"
-	errGenerateSimplePolicy     = "cannot generate simple policy document"
-	errInvalidRawPolicy         = "invalid raw policy: must be valid JSON"
+	errNotPolicy             = "managed resource is not a Policy custom resource"
+	errTrackPCUsage          = "cannot track ProviderConfig usage"
+	errGetProviderConfig     = "cannot get referenced ProviderConfig"
+	errCreateBackblazeClient = "cannot create Backblaze client"
+	errCreatePolicy          = "cannot create policy"
+	errDeletePolicy          = "cannot delete policy"
+	errGetPolicy             = "cannot get policy"
+	errInvalidPolicyParams   = "invalid policy parameters: specify either allowBucket or rawPolicy, not both"
+	errGenerateSimplePolicy  = "cannot generate simple policy document"
+	errInvalidRawPolicy      = "invalid raw policy: must be valid JSON"
 )
 
 // SetupPolicy adds a controller that reconciles Policy managed resources.
@@ -217,8 +218,8 @@ func (r *PolicyReconciler) generateSimplePolicy(bucketName string) (string, erro
 		"Version": "2012-10-17",
 		"Statement": []map[string]interface{}{
 			{
-				"Effect":   "Allow",
-				"Action":   []string{"s3:*"},
+				"Effect": "Allow",
+				"Action": []string{"s3:*"},
 				"Resource": []string{
 					fmt.Sprintf("arn:aws:s3:::%s", bucketName),
 					fmt.Sprintf("arn:aws:s3:::%s/*", bucketName),

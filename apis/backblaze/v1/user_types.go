@@ -1,12 +1,9 @@
 /*
 Copyright 2025 The Crossplane Authors.
-
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-
     http://www.apache.org/licenses/LICENSE-2.0
-
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -30,26 +27,21 @@ import (
 type UserParameters struct {
 	// KeyName is the human-readable name for the application key.
 	KeyName string `json:"keyName"`
-
 	// Capabilities define what this application key can do.
 	// Available capabilities:
 	// - listKeys, writeKeys, deleteKeys: manage application keys
 	// - listBuckets, writeBuckets: manage buckets
 	// - listFiles, readFiles, shareFiles, writeFiles, deleteFile: manage files
 	Capabilities []string `json:"capabilities"`
-
 	// BucketID restricts the key to operations on this specific bucket only.
 	// +optional
 	BucketID *string `json:"bucketId,omitempty"`
-
 	// NamePrefix restricts file operations to files whose names start with this prefix.
 	// +optional
 	NamePrefix *string `json:"namePrefix,omitempty"`
-
 	// ValidDurationInSeconds sets how long the key will be valid (max 1000 days).
 	// +optional
 	ValidDurationInSeconds *int64 `json:"validDurationInSeconds,omitempty"`
-
 	// WriteSecretToRef specifies the secret where the application key credentials will be stored.
 	WriteSecretToRef xpv1.SecretReference `json:"writeSecretToRef"`
 }
@@ -58,36 +50,31 @@ type UserParameters struct {
 type UserObservation struct {
 	// ApplicationKeyID is the ID of the created application key.
 	ApplicationKeyID string `json:"applicationKeyId,omitempty"`
-
 	// AccountID is the account that owns this application key.
 	AccountID string `json:"accountId,omitempty"`
-
 	// Capabilities are the capabilities granted to this key.
 	Capabilities []string `json:"capabilities,omitempty"`
-
 	// BucketID is the bucket this key is restricted to (if any).
 	BucketID *string `json:"bucketId,omitempty"`
-
 	// NamePrefix is the prefix this key is restricted to (if any).
 	NamePrefix *string `json:"namePrefix,omitempty"`
-
 	// ExpirationTimestamp is when this key will expire (if set).
 	ExpirationTimestamp *int64 `json:"expirationTimestamp,omitempty"`
 }
 
 // A UserSpec defines the desired state of a User.
 type UserSpec struct {
-	DeletionPolicy                   xpv1.DeletionPolicy `json:"deletionPolicy,omitempty"`
+	DeletionPolicy                   xpv1.DeletionPolicy     `json:"deletionPolicy,omitempty"`
 	ManagementPolicies               xpv1.ManagementPolicies `json:"managementPolicies,omitempty"`
-	ProviderConfigReference          *xpv1.Reference `json:"providerConfigReference,omitempty"`
-	WriteConnectionSecretToReference *xpv1.SecretReference `json:"writeConnectionSecretToRef,omitempty"`
-	ForProvider                      UserParameters `json:"forProvider"`
+	ProviderConfigReference          *xpv1.Reference         `json:"providerConfigReference,omitempty"`
+	WriteConnectionSecretToReference *xpv1.SecretReference   `json:"writeConnectionSecretToRef,omitempty"`
+	ForProvider                      UserParameters          `json:"forProvider"`
 }
 
 // A UserStatus represents the observed state of a User.
 type UserStatus struct {
-	Conditions   []xpv1.Condition `json:"conditions,omitempty"`
-	AtProvider   UserObservation `json:"atProvider,omitempty"`
+	Conditions []xpv1.Condition `json:"conditions,omitempty"`
+	AtProvider UserObservation  `json:"atProvider,omitempty"`
 }
 
 // GetCondition returns the status condition by type.
@@ -120,13 +107,11 @@ func (s *UserStatus) SetConditions(c ...xpv1.Condition) {
 type User struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:",inline"`
-
-	Spec   UserSpec   `json:"spec"`
-	Status UserStatus `json:"status,omitempty"`
+	Spec              UserSpec   `json:"spec"`
+	Status            UserStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
-
 // UserList contains a list of User
 type UserList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -191,10 +176,6 @@ var (
 	UserKindAPIVersion   = UserKind + "." + SchemeGroupVersion.String()
 	UserGroupVersionKind = SchemeGroupVersion.WithKind(UserKind)
 )
-
-func init() {
-	SchemeBuilder.Register(&User{}, &UserList{})
-}
 
 // GetKeyName returns the key name from the User resource.
 func (mg *User) GetKeyName() string {

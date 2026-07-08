@@ -18,10 +18,9 @@ limitations under the License.
 package apis
 
 import (
-	"k8s.io/apimachinery/pkg/runtime"
-
 	backblazev1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1"
-	v1beta1 "github.com/rossigee/provider-backblaze/apis/v1beta1"
+	"github.com/rossigee/provider-backblaze/apis/v1beta1"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 func init() {

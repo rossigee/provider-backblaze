@@ -17,9 +17,8 @@ limitations under the License.
 package apis
 
 import (
-	"testing"
-
 	"k8s.io/apimachinery/pkg/runtime"
+	"testing"
 )
 
 func TestAddToScheme(t *testing.T) {
