@@ -21,7 +21,8 @@ limitations under the License.
 package v1
 
 import (
-	"github.com/crossplane/crossplane/apis/v2/core/v2"
+	xpv1 "github.com/crossplane/crossplane/apis/v2/core/v2"
+
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -133,17 +134,17 @@ func (in *BucketSpec) DeepCopyInto(out *BucketSpec) {
 	*out = *in
 	if in.ManagementPolicies != nil {
 		in, out := &in.ManagementPolicies, &out.ManagementPolicies
-		*out = make(v2.ManagementPolicies, len(*in))
+		*out = make(xpv1.ManagementPolicies, len(*in))
 		copy(*out, *in)
 	}
 	if in.ProviderConfigReference != nil {
 		in, out := &in.ProviderConfigReference, &out.ProviderConfigReference
-		*out = new(v2.Reference)
+		*out = new(xpv1.Reference)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.WriteConnectionSecretToReference != nil {
 		in, out := &in.WriteConnectionSecretToReference, &out.WriteConnectionSecretToReference
-		*out = new(v2.SecretReference)
+		*out = new(xpv1.SecretReference)
 		**out = **in
 	}
 	in.ForProvider.DeepCopyInto(&out.ForProvider)
@@ -164,7 +165,7 @@ func (in *BucketStatus) DeepCopyInto(out *BucketStatus) {
 	*out = *in
 	if in.Conditions != nil {
 		in, out := &in.Conditions, &out.Conditions
-		*out = make([]v2.Condition, len(*in))
+		*out = make([]xpv1.Condition, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
@@ -365,17 +366,17 @@ func (in *PolicySpec) DeepCopyInto(out *PolicySpec) {
 	*out = *in
 	if in.ManagementPolicies != nil {
 		in, out := &in.ManagementPolicies, &out.ManagementPolicies
-		*out = make(v2.ManagementPolicies, len(*in))
+		*out = make(xpv1.ManagementPolicies, len(*in))
 		copy(*out, *in)
 	}
 	if in.ProviderConfigReference != nil {
 		in, out := &in.ProviderConfigReference, &out.ProviderConfigReference
-		*out = new(v2.Reference)
+		*out = new(xpv1.Reference)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.WriteConnectionSecretToReference != nil {
 		in, out := &in.WriteConnectionSecretToReference, &out.WriteConnectionSecretToReference
-		*out = new(v2.SecretReference)
+		*out = new(xpv1.SecretReference)
 		**out = **in
 	}
 	in.ForProvider.DeepCopyInto(&out.ForProvider)
@@ -396,7 +397,7 @@ func (in *PolicyStatus) DeepCopyInto(out *PolicyStatus) {
 	*out = *in
 	if in.Conditions != nil {
 		in, out := &in.Conditions, &out.Conditions
-		*out = make([]v2.Condition, len(*in))
+		*out = make([]xpv1.Condition, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
@@ -549,17 +550,17 @@ func (in *UserSpec) DeepCopyInto(out *UserSpec) {
 	*out = *in
 	if in.ManagementPolicies != nil {
 		in, out := &in.ManagementPolicies, &out.ManagementPolicies
-		*out = make(v2.ManagementPolicies, len(*in))
+		*out = make(xpv1.ManagementPolicies, len(*in))
 		copy(*out, *in)
 	}
 	if in.ProviderConfigReference != nil {
 		in, out := &in.ProviderConfigReference, &out.ProviderConfigReference
-		*out = new(v2.Reference)
+		*out = new(xpv1.Reference)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.WriteConnectionSecretToReference != nil {
 		in, out := &in.WriteConnectionSecretToReference, &out.WriteConnectionSecretToReference
-		*out = new(v2.SecretReference)
+		*out = new(xpv1.SecretReference)
 		**out = **in
 	}
 	in.ForProvider.DeepCopyInto(&out.ForProvider)
@@ -580,7 +581,7 @@ func (in *UserStatus) DeepCopyInto(out *UserStatus) {
 	*out = *in
 	if in.Conditions != nil {
 		in, out := &in.Conditions, &out.Conditions
-		*out = make([]v2.Condition, len(*in))
+		*out = make([]xpv1.Condition, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}

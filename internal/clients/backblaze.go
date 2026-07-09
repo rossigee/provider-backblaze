@@ -28,12 +28,14 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
 	"github.com/pkg/errors"
-	"github.com/rossigee/provider-backblaze/apis/v1beta1"
+
 	"io"
 	corev1 "k8s.io/api/core/v1"
 	"net/http"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"time"
+
+	v1beta1 "github.com/rossigee/provider-backblaze/apis/v1beta1"
 )
 
 const (

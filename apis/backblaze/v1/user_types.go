@@ -14,11 +14,8 @@ limitations under the License.
 package v1
 
 import (
-	"reflect"
-
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	xpv1 "github.com/crossplane/crossplane/apis/v2/core/v2"
 )
@@ -98,7 +95,7 @@ func (s *UserStatus) SetConditions(c ...xpv1.Condition) {
 // +kubebuilder:resource:scope=Cluster,categories={crossplane,managed,backblaze}
 // +kubebuilder:printcolumn:name="READY",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="SYNCED",type="string",JSONPath=".status.conditions[?(@.type=='Synced')].status"
-// +kubebuilder:printcolumn:name="EXTERNAL NAME",type="string",JSONPath=".metadata.annotations.crossplane\\.io/external-name"
+// +kubebuilder:printcolumn:name="EXTERNAL NAME",type="string",JSONPath=".metadata.annotations.crossplane.io/external-name"
 // +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp"
 // +kubebuilder:printcolumn:name="KEY NAME",type="string",JSONPath=".spec.forProvider.keyName"
 // +kubebuilder:printcolumn:name="KEY ID",type="string",JSONPath=".status.atProvider.applicationKeyId"
@@ -169,13 +166,7 @@ func (u *User) SetWriteConnectionSecretToReference(r *xpv1.SecretReference) {
 	u.Spec.WriteConnectionSecretToReference = r
 }
 
-// User type metadata.
-var (
-	UserKind             = reflect.TypeOf(User{}).Name()
-	UserGroupKind        = schema.GroupKind{Group: Group, Kind: UserKind}
-	UserKindAPIVersion   = UserKind + "." + SchemeGroupVersion.String()
-	UserGroupVersionKind = SchemeGroupVersion.WithKind(UserKind)
-)
+// User type metadata lives in register.go. Avoid duplicating here.
 
 // GetKeyName returns the key name from the User resource.
 func (mg *User) GetKeyName() string {
