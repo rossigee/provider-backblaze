@@ -44,6 +44,13 @@ import (
 )
 
 func main() {
+	// Disable WatchListClient feature gate to avoid cache sync timeout with bookmark events.
+	// The feature gate is beta-default-on in client-go v0.35.0+ but causes issues with bookmark
+	// delivery on some clusters (including this one), leading to infinite "event bookmark expired"
+	// warnings and 2-minute CacheSyncTimeout crash. Reverting to plain LIST+WATCH is the standard
+	// mitigation and what all prior releases effectively used before the Crossplane v2 migration.
+	os.Setenv("KUBE_FEATURE_WatchListClient", "false")
+
 	var (
 		app              = kingpin.New(filepath.Base(os.Args[0]), "Backblaze support for Crossplane.").DefaultEnvars()
 		debug            = app.Flag("debug", "Run with debug logging.").Short('d').Bool()
