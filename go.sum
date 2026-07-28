@@ -55,8 +55,6 @@ github.com/cenkalti/backoff/v5 v5.0.3/go.mod h1:rkhZdG3JZukswDf7f0cwqPNk4K0sa+F9
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=
-github.com/crossplane/crossplane-runtime/v2 v2.4.0-rc.0 h1:Zgiq+hrh9lbjWtv8ECCLd1A0I9knt3c8ZUELExw6M1w=
-github.com/crossplane/crossplane-runtime/v2 v2.4.0-rc.0/go.mod h1:PAo3zIfmMzrS18HGyHJLXCeXIp0nFW2Md2Fn9gocMaU=
 github.com/crossplane/crossplane-tools v0.0.0-20260719180100-659f1dc036c5 h1:JTWp/389uzSn6pz8cRHyh+zIHVKtyUQgVd2v9zbsGc4=
 github.com/crossplane/crossplane-tools v0.0.0-20260719180100-659f1dc036c5/go.mod h1:W5PNfXAOkvDjcDUCBsP2mEFDneCrrcMo1t+U3Dj5mjI=
 github.com/crossplane/crossplane/apis/v2 v2.4.0-rc.0 h1:4PBahj+tnK9RwSZm1bYGvOkHOU+1CSHjJF2PoPzBMD0=
@@ -190,6 +188,8 @@ github.com/prometheus/procfs v0.21.1 h1:GljZCt+zSTS+NZq88cyQ1LjZ+RCHp3uVuabBWA5+
 github.com/prometheus/procfs v0.21.1/go.mod h1:aB55Cww9pdSJVHk0hUf0inxWyyjPogFIjmHKYgMKmtY=
 github.com/rogpeppe/go-internal v1.14.1 h1:UQB4HGPB6osV0SQTLymcB4TgvyWu6ZyliaW0tI/otEQ=
 github.com/rogpeppe/go-internal v1.14.1/go.mod h1:MaRKkUm5W0goXpeCfT7UZI6fk/L7L7so1lCWt35ZSgc=
+github.com/rossigee/crossplane-runtime/v2 v2.4.0-rc.0.0.20260708064937-d99a640775a8 h1:Nnqd3knmcLB2CO7Q1j/1p3vj/kMugM6DOqrNPT16FpM=
+github.com/rossigee/crossplane-runtime/v2 v2.4.0-rc.0.0.20260708064937-d99a640775a8/go.mod h1:PAo3zIfmMzrS18HGyHJLXCeXIp0nFW2Md2Fn9gocMaU=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
 github.com/spf13/afero v1.15.0 h1:b/YBCLWAJdFWJTN9cLhiXXcD7mzKn9Dm86dNnfyQw1I=
 github.com/spf13/afero v1.15.0/go.mod h1:NC2ByUVxtQs4b3sIUphxK0NioZnmxgyCrfzeuq8lxMg=

@@ -19,6 +19,7 @@ package apis
 
 import (
 	backblazev1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1"
+	"github.com/rossigee/provider-backblaze/apis/v1beta1"
 
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -26,7 +27,10 @@ import (
 func init() {
 	// Register the types with the Scheme so the components can map objects to GroupVersionKinds and back
 	// v1 cluster-scoped APIs (Crossplane v2)
-	AddToSchemes = append(AddToSchemes, backblazev1.SchemeBuilder.AddToScheme)
+	AddToSchemes = append(AddToSchemes,
+		backblazev1.SchemeBuilder.AddToScheme,
+		v1beta1.SchemeBuilder.AddToScheme,
+	)
 }
 
 // AddToSchemes may be used to add all resources defined in the project to a Scheme

@@ -24,6 +24,8 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	apimachineryruntime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes/scheme"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/feature"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
@@ -92,10 +94,15 @@ func main() {
 		"poll-jitter", pollJitter,
 		"max-reconcile-rate", *maxReconcileRate)
 
+	s := apimachineryruntime.NewScheme()
+	kingpin.FatalIfError(scheme.AddToScheme(s), "Cannot add k8s types to scheme")
+	kingpin.FatalIfError(apis.AddToScheme(s), "Cannot add Backblaze APIs to scheme")
+
 	cfg, err := ctrl.GetConfig()
 	kingpin.FatalIfError(err, "Cannot get API server rest config")
 
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
+		Scheme:             s,
 		LeaderElection:   *leaderElection,
 		LeaderElectionID: "crossplane-leader-election-provider-backblaze",
 		Cache: cache.Options{
@@ -133,7 +140,6 @@ func main() {
 		Features:                featureFlags,
 	}
 
-	kingpin.FatalIfError(apis.AddToScheme(mgr.GetScheme()), "Cannot add Backblaze APIs to scheme")
 	kingpin.FatalIfError(backblazecontroller.Setup(mgr, o), "Cannot setup controllers")
 
 	kingpin.FatalIfError(mgr.AddHealthzCheck("healthz", healthz.Ping), "Cannot add health check")
