@@ -32,6 +32,7 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Init build submodule
         run: git submodule update --init --depth 1 build
 
       - name: Create GitHub Release
