@@ -19,10 +19,11 @@ package integration
 import (
 	"context"
 	"fmt"
-	"github.com/rossigee/provider-backblaze/internal/clients"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/rossigee/provider-backblaze/internal/clients"
 )
 
 // Integration test configuration

@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
@@ -30,10 +31,11 @@ import (
 	"github.com/pkg/errors"
 
 	"io"
-	corev1 "k8s.io/api/core/v1"
 	"net/http"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"time"
+
+	corev1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	v1beta1 "github.com/rossigee/provider-backblaze/apis/v1beta1"
 )

@@ -15,11 +15,12 @@ limitations under the License.
 package v1
 
 import (
+	"reflect"
+
 	xpv1 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"reflect"
 )
 
 // BucketDeletionPolicy represents the bucket deletion policy.

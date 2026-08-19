@@ -17,8 +17,9 @@ limitations under the License.
 package features
 
 import (
-	"github.com/crossplane/crossplane-runtime/v2/pkg/feature"
 	"testing"
+
+	"github.com/crossplane/crossplane-runtime/v2/pkg/feature"
 )
 
 func TestFeatureFlags(t *testing.T) {
