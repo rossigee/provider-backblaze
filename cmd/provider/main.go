@@ -24,12 +24,12 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
-	apimachineryruntime "k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/kubernetes/scheme"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/feature"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
+	apimachineryruntime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes/scheme"
 
 	"github.com/rossigee/provider-backblaze/apis"
 	backblazecontroller "github.com/rossigee/provider-backblaze/internal/controller"
@@ -109,7 +109,7 @@ func main() {
 	kingpin.FatalIfError(err, "Cannot get API server rest config")
 
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
-		Scheme:             s,
+		Scheme:           s,
 		LeaderElection:   *leaderElection,
 		LeaderElectionID: "crossplane-leader-election-provider-backblaze",
 		Cache: cache.Options{
