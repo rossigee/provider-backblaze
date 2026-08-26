@@ -32,11 +32,11 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 
 	"github.com/rossigee/provider-backblaze/apis"
+	v1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1"
 	backblazecontroller "github.com/rossigee/provider-backblaze/internal/controller"
 	"github.com/rossigee/provider-backblaze/internal/features"
 	"github.com/rossigee/provider-backblaze/internal/tracing"
 	"github.com/rossigee/provider-backblaze/internal/version"
-	v1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
