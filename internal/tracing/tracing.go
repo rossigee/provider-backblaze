@@ -23,7 +23,7 @@ const (
 	operationAttr    = "crossplane.operation"
 )
 
-var tracer trace.Tracer
+var tracer trace.Tracer = otel.Tracer(tracerName)
 var tp *sdktrace.TracerProvider
 
 func Init(serviceName string) func(context.Context) {
