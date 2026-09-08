@@ -110,8 +110,14 @@ func (r *PolicyReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 		return reconcile.Result{RequeueAfter: requeueAfter}, r.Client.Status().Update(ctx, policy)
 	}
 
-	// Check if policy already exists
+	// Check if policy already exists (Observe)
 	if policy.Status.AtProvider.PolicyName == "" {
+		// Respect managementPolicies - skip create if Observe-only
+		if !shouldCreate(policy.GetManagementPolicies()) {
+			logger.Info("Skipping policy creation due to managementPolicies", "managementPolicies", policy.GetManagementPolicies())
+			r.setCondition(policy, xpv1.TypeReady, "False", "ObserveOnly", "External resource does not exist and creation is disabled by managementPolicies")
+			return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, policy)
+		}
 		// Create policy
 		if err := r.createPolicy(ctx, policy, service); err != nil {
 			logger.Error(err, "Failed to create policy")
@@ -130,6 +136,13 @@ func (r *PolicyReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 
 func (r *PolicyReconciler) handleDeletion(ctx context.Context, policy *backblazev1.Policy) (reconcile.Result, error) {
 	logger := log.FromContext(ctx)
+
+	// Respect managementPolicies - if Observe only, don't delete external resource
+	if !shouldDelete(policy.GetManagementPolicies()) {
+		logger.Info("Skipping policy deletion due to managementPolicies", "managementPolicies", policy.GetManagementPolicies())
+		logger.Info("Policy deletion handled (Observe-only, external resource preserved)")
+		return reconcile.Result{}, nil
+	}
 
 	// For this implementation, we'll simulate policy deletion
 	// In a real implementation, you would use the Backblaze B2 API
@@ -244,4 +257,30 @@ func (r *PolicyReconciler) setCondition(policy *backblazev1.Policy, conditionTyp
 		Reason:             xpv1.ConditionReason(reason),
 		Message:            message,
 	})
+}
+
+// shouldCreate returns true if managementPolicies allow creation.
+func shouldCreate(mp xpv1.ManagementPolicies) bool {
+	if len(mp) == 0 {
+		return true
+	}
+	for _, p := range mp {
+		if p == xpv1.ManagementActionCreate || p == xpv1.ManagementActionAll {
+			return true
+		}
+	}
+	return false
+}
+
+// shouldDelete returns true if managementPolicies allow deletion.
+func shouldDelete(mp xpv1.ManagementPolicies) bool {
+	if len(mp) == 0 {
+		return true
+	}
+	for _, p := range mp {
+		if p == xpv1.ManagementActionDelete || p == xpv1.ManagementActionAll {
+			return true
+		}
+	}
+	return false
 }

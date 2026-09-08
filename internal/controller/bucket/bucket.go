@@ -97,6 +97,11 @@ func (r *BucketReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 
 	logger.Info("Reconciling bucket", "bucketName", bucket.Spec.ForProvider.BucketName)
 
+	// Handle deletion - respect managementPolicies
+	if !bucket.GetDeletionTimestamp().IsZero() {
+		return r.handleDeletion(ctx, bucket)
+	}
+
 	// Get provider config and create client
 	service, err := r.getBackblazeClient(ctx, bucket)
 	if err != nil {
@@ -111,7 +116,7 @@ func (r *BucketReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 		return reconcile.Result{RequeueAfter: requeueAfter}, r.Client.Status().Update(ctx, bucket)
 	}
 
-	// Check if bucket exists
+	// Check if bucket exists (Observe)
 	bucketName := bucket.GetBucketName()
 	exists, err := service.BucketExists(ctx, bucketName)
 	if err != nil {
@@ -121,6 +126,12 @@ func (r *BucketReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 	}
 
 	if !exists {
+		// Respect managementPolicies - skip create if Observe-only
+		if !shouldCreate(bucket.GetManagementPolicies()) {
+			logger.Info("Skipping bucket creation due to managementPolicies", "managementPolicies", bucket.GetManagementPolicies())
+			r.setCondition(bucket, xpv1.TypeReady, "False", "ObserveOnly", "External resource does not exist and creation is disabled by managementPolicies")
+			return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, bucket)
+		}
 		// Create bucket
 		logger.Info("Creating bucket", "bucketName", bucketName)
 		bucketType := bucket.Spec.ForProvider.BucketType
@@ -182,6 +193,44 @@ func (r *BucketReconciler) getBackblazeClient(ctx context.Context, bucket *backb
 	return clients.NewBackblazeClient(*cfg)
 }
 
+func (r *BucketReconciler) handleDeletion(ctx context.Context, bucket *backblazev1.Bucket) (reconcile.Result, error) {
+	logger := log.FromContext(ctx)
+
+	// Respect managementPolicies - if Observe only, don't delete external resource
+	if !shouldDelete(bucket.GetManagementPolicies()) {
+		logger.Info("Skipping bucket deletion due to managementPolicies", "managementPolicies", bucket.GetManagementPolicies())
+		return reconcile.Result{}, nil
+	}
+
+	// Delete the bucket from B2 if it exists
+	bucketName := bucket.GetBucketName()
+	service, err := r.getBackblazeClient(ctx, bucket)
+	if err != nil {
+		logger.Error(err, "Failed to create Backblaze client for deletion")
+		// Continue without blocking deletion if client creation fails (ProviderConfig may be gone)
+		return reconcile.Result{}, nil
+	}
+
+	exists, err := service.BucketExists(ctx, bucketName)
+	if err != nil {
+		logger.Error(err, "Failed to check bucket existence for deletion")
+		// Continue with deletion even if check fails
+		return reconcile.Result{}, nil
+	}
+	if exists {
+		if err := service.DeleteBucket(ctx, bucketName); err != nil {
+			if !strings.Contains(err.Error(), "not found") && !strings.Contains(err.Error(), "404") && !strings.Contains(err.Error(), "NoSuchBucket") {
+				logger.Error(err, "Failed to delete bucket from B2")
+			}
+		} else {
+			logger.Info("Successfully deleted bucket from B2", "bucketName", bucketName)
+		}
+	}
+
+	logger.Info("Bucket deletion handled")
+	return reconcile.Result{}, nil
+}
+
 func (r *BucketReconciler) setCondition(bucket *backblazev1.Bucket, conditionType xpv1.ConditionType, status, reason, message string) {
 	bucket.SetConditions(xpv1.Condition{
 		Type:               conditionType,
@@ -190,4 +239,31 @@ func (r *BucketReconciler) setCondition(bucket *backblazev1.Bucket, conditionTyp
 		Reason:             xpv1.ConditionReason(reason),
 		Message:            message,
 	})
+}
+
+// shouldCreate returns true if managementPolicies allow creation.
+// Empty (nil) policies are treated as default "*": allow all.
+func shouldCreate(mp xpv1.ManagementPolicies) bool {
+	if len(mp) == 0 {
+		return true
+	}
+	for _, p := range mp {
+		if p == xpv1.ManagementActionCreate || p == xpv1.ManagementActionAll {
+			return true
+		}
+	}
+	return false
+}
+
+// shouldDelete returns true if managementPolicies allow deletion.
+func shouldDelete(mp xpv1.ManagementPolicies) bool {
+	if len(mp) == 0 {
+		return true
+	}
+	for _, p := range mp {
+		if p == xpv1.ManagementActionDelete || p == xpv1.ManagementActionAll {
+			return true
+		}
+	}
+	return false
 }

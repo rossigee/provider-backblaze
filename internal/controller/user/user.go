@@ -114,8 +114,14 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req reconcile.Request) (
 		return reconcile.Result{RequeueAfter: requeueAfter}, r.Client.Status().Update(ctx, user)
 	}
 
-	// Check if application key already exists
+	// Check if application key already exists (Observe)
 	if user.Status.AtProvider.ApplicationKeyID == "" {
+		// Respect managementPolicies - skip create if Observe-only
+		if !shouldCreate(user.GetManagementPolicies()) {
+			logger.Info("Skipping application key creation due to managementPolicies", "managementPolicies", user.GetManagementPolicies())
+			r.setCondition(user, xpv1.TypeReady, "False", "ObserveOnly", "External resource does not exist and creation is disabled by managementPolicies")
+			return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, user)
+		}
 		// Create application key
 		if err := r.createApplicationKey(ctx, user, service); err != nil {
 			logger.Error(err, "Failed to create application key")
@@ -134,6 +140,15 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req reconcile.Request) (
 
 func (r *UserReconciler) handleDeletion(ctx context.Context, user *backblazev1.User) (reconcile.Result, error) {
 	logger := log.FromContext(ctx)
+
+	// Respect managementPolicies - if Observe only, don't delete external resource
+	if !shouldDelete(user.GetManagementPolicies()) {
+		logger.Info("Skipping application key deletion due to managementPolicies", "managementPolicies", user.GetManagementPolicies())
+		// Still delete the secret reference? No - skip external deletion but allow K8s deletion to proceed.
+		// Do not delete external key, just return.
+		logger.Info("User deletion handled (Observe-only, external resource preserved)")
+		return reconcile.Result{}, nil
+	}
 
 	// Delete the application key from B2 if it exists
 	if user.Status.AtProvider.ApplicationKeyID != "" {
@@ -272,4 +287,30 @@ func (r *UserReconciler) setCondition(user *backblazev1.User, conditionType xpv1
 		Reason:             xpv1.ConditionReason(reason),
 		Message:            message,
 	})
+}
+
+// shouldCreate returns true if managementPolicies allow creation.
+func shouldCreate(mp xpv1.ManagementPolicies) bool {
+	if len(mp) == 0 {
+		return true
+	}
+	for _, p := range mp {
+		if p == xpv1.ManagementActionCreate || p == xpv1.ManagementActionAll {
+			return true
+		}
+	}
+	return false
+}
+
+// shouldDelete returns true if managementPolicies allow deletion.
+func shouldDelete(mp xpv1.ManagementPolicies) bool {
+	if len(mp) == 0 {
+		return true
+	}
+	for _, p := range mp {
+		if p == xpv1.ManagementActionDelete || p == xpv1.ManagementActionAll {
+			return true
+		}
+	}
+	return false
 }
