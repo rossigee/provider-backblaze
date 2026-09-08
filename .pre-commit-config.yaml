@@ -105,6 +105,8 @@ repos:
           ]
 
           for filename in sys.argv[1:]:
+              if filename.endswith('.pre-commit-config.yaml'):
+                  continue
               try:
                   with open(filename, 'r', encoding='utf-8', errors='ignore') as f:
                       content = f.read()
@@ -117,3 +119,4 @@ repos:
           "
         language: system
         files: \.(go|yaml|yml|json|md|sh|env)$
+        exclude: \.pre-commit-config\.yaml$
