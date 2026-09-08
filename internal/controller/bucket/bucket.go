@@ -57,6 +57,14 @@ func SetupBucket(mgr ctrl.Manager, o controller.Options) error {
 		Client: mgr.GetClient(),
 	}
 
+	// Explicitly wait for ProviderConfig informer to sync before starting reconciliation
+	// This prevents the cache-sync race where Watches() with empty handler.Funcs{} doesn't
+	// block until HasSynced, causing immediate Get(ProviderConfig) calls to fail with NotFound
+	cache := mgr.GetCache()
+	if _, err := cache.GetInformer(context.Background(), &apisv1beta1.ProviderConfig{}); err != nil {
+		return err
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("bucket-controller").
 		For(&backblazev1.Bucket{}).

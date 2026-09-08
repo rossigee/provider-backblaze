@@ -18,7 +18,6 @@ package user
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -55,6 +54,14 @@ const (
 func SetupUser(mgr ctrl.Manager, o controller.Options) error {
 	r := &UserReconciler{
 		Client: mgr.GetClient(),
+	}
+
+	// Explicitly wait for ProviderConfig informer to sync before starting reconciliation
+	// This prevents the cache-sync race where Watches() with empty handler.Funcs{} doesn't
+	// block until HasSynced, causing immediate Get(ProviderConfig) calls to fail with NotFound
+	cache := mgr.GetCache()
+	if _, err := cache.GetInformer(context.Background(), &apisv1beta1.ProviderConfig{}); err != nil {
+		return err
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
@@ -128,32 +135,58 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req reconcile.Request) (
 func (r *UserReconciler) handleDeletion(ctx context.Context, user *backblazev1.User) (reconcile.Result, error) {
 	logger := log.FromContext(ctx)
 
+	// Delete the application key from B2 if it exists
+	if user.Status.AtProvider.ApplicationKeyID != "" {
+		service, err := r.getBackblazeClient(ctx, user)
+		if err != nil {
+			logger.Error(err, "Failed to create Backblaze client for deletion")
+			// Continue with deletion even if client creation fails (ProviderConfig may be gone)
+		} else {
+			if err := service.DeleteApplicationKey(ctx, user.Status.AtProvider.ApplicationKeyID); err != nil {
+				// Treat "not found" as success (key already deleted in B2)
+				if !strings.Contains(err.Error(), "not found") && !strings.Contains(err.Error(), "404") {
+					logger.Error(err, "Failed to delete application key from B2")
+				}
+				// Continue with deletion even if B2 deletion fails
+			} else {
+				logger.Info("Successfully deleted application key from B2", "keyID", user.Status.AtProvider.ApplicationKeyID)
+			}
+		}
+	}
+
 	// Delete the associated secret
 	if err := r.deleteSecret(ctx, user); err != nil {
 		logger.Error(err, "Failed to delete application key secret")
 		// Continue with deletion even if secret deletion fails
 	}
 
-	// For this implementation, we'll simulate application key deletion
-	// In a real implementation, you would use the Backblaze B2 API
-	// TODO: Implement actual B2 application key deletion
-
 	logger.Info("User deletion handled")
 	return reconcile.Result{}, nil
 }
 
 func (r *UserReconciler) createApplicationKey(ctx context.Context, user *backblazev1.User, service *clients.BackblazeClient) error {
-	// For this implementation, we'll simulate application key creation
-	// In a real implementation, you would use the Backblaze B2 API
-	// TODO: Implement actual B2 application key creation
+	// Call real B2 API to create application key
+	var validDuration *int
+	if user.Spec.ForProvider.ValidDurationInSeconds != nil {
+		v := int(*user.Spec.ForProvider.ValidDurationInSeconds)
+		validDuration = &v
+	}
 
-	// Generate a simulated application key ID and key
-	applicationKeyID := fmt.Sprintf("K005%012d", user.GetGeneration())
-	applicationKey := fmt.Sprintf("K005%024d", user.GetGeneration()*1000)
+	keyResp, err := service.CreateApplicationKey(
+		ctx,
+		user.Spec.ForProvider.KeyName,
+		user.Spec.ForProvider.Capabilities,
+		"",
+		"",
+		validDuration,
+	)
+	if err != nil {
+		return errors.Wrap(err, errCreateApplicationKey)
+	}
 
-	// Update the resource status
-	user.Status.AtProvider.ApplicationKeyID = applicationKeyID
-	user.Status.AtProvider.AccountID = "simulated-account-id"
+	// Update the resource status with real values from B2
+	user.Status.AtProvider.ApplicationKeyID = keyResp.ApplicationKeyID
+	user.Status.AtProvider.AccountID = keyResp.AccountID
 	user.Status.AtProvider.Capabilities = user.Spec.ForProvider.Capabilities
 	if user.Spec.ForProvider.BucketID != nil {
 		user.Status.AtProvider.BucketID = user.Spec.ForProvider.BucketID
@@ -165,8 +198,8 @@ func (r *UserReconciler) createApplicationKey(ctx context.Context, user *backbla
 		user.Status.AtProvider.ExpirationTimestamp = user.Spec.ForProvider.ValidDurationInSeconds
 	}
 
-	// Create the secret with the application key credentials
-	return r.writeSecret(ctx, user, applicationKeyID, applicationKey)
+	// Create the secret with the real application key credentials
+	return r.writeSecret(ctx, user, keyResp.ApplicationKeyID, keyResp.ApplicationKey)
 }
 
 func (r *UserReconciler) getBackblazeClient(ctx context.Context, user *backblazev1.User) (*clients.BackblazeClient, error) {

@@ -62,7 +62,7 @@ func (r *reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	pc.Status.SetConditions(xpv1.Available())
 
 	fresh := &v1beta1.ProviderConfig{}
-	if err := r.kube.Get(ctx, client.ObjectKey{Name: pc.GetName()}, fresh); err != nil {
+	if err := r.kube.Get(ctx, client.ObjectKey{Name: pc.GetName(), Namespace: pc.GetNamespace()}, fresh); err != nil {
 		log.Error(err, "failed to get latest ProviderConfig for status update")
 		return reconcile.Result{RequeueAfter: 30 * time.Second}, client.IgnoreNotFound(err)
 	}
