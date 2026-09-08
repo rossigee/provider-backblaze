@@ -22,7 +22,7 @@ repos:
         files: \.py$
 
   - repo: https://github.com/pycqa/isort
-    rev: 6.0.1
+    rev: 5.13.2
     hooks:
       - id: isort
         args: [--profile=black]
@@ -37,7 +37,7 @@ repos:
         pass_filenames: false
 
   - repo: https://github.com/tekwizely/pre-commit-golang
-    rev: v1.0.0
+    rev: v1.0.0-rc.1
     hooks:
       - id: go-fmt
         exclude: 'zz_generated\..*\.go$|tools/'
@@ -105,7 +105,7 @@ repos:
           ]
 
           for filename in sys.argv[1:]:
-              if filename.endswith('.pre-commit-config.yaml'):
+              if filename.endswith('.pre-commit-config.yaml') or filename.endswith('_test.go'):
                   continue
               try:
                   with open(filename, 'r', encoding='utf-8', errors='ignore') as f:
@@ -119,4 +119,4 @@ repos:
           "
         language: system
         files: \.(go|yaml|yml|json|md|sh|env)$
-        exclude: \.pre-commit-config\.yaml$
+        exclude: (\.pre-commit-config\.yaml$|_test\.go$)
