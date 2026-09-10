@@ -44,7 +44,7 @@ spec:
   backblazeRegion: us-west-001
   credentials:
     source: Secret
-    apiSecretRef:
+    secretRef:
       namespace: crossplane-system
       name: backblaze-creds
 ```
