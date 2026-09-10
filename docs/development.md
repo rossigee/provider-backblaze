@@ -112,7 +112,8 @@ The package will be at `_output/xpkg/`
 2. **Create Backblaze credentials secret**
    ```bash
    kubectl create secret generic backblaze-creds \
-     --from-literal=credentials='{"applicationKeyId":"K005xxxxxxxxxxxxx","applicationKey":"xxxxxxxxxxxxxxxxxx","region":"us-west-001"}' \
+     --from-literal=applicationKeyId="K005xxxxxxxxxxxxx" \
+     --from-literal=applicationKey="xxxxxxxxxxxxxxxxxx" \
      -n crossplane-system
    ```
 
@@ -175,7 +176,8 @@ export B2_REGION="us-west-001"
 
 # 2. Apply test credentials
 kubectl create secret generic backblaze-test-creds \
-  --from-literal=credentials='{"applicationKeyId":"'$B2_APPLICATION_KEY_ID'","applicationKey":"'$B2_APPLICATION_KEY'","region":"'$B2_REGION'"}' \
+  --from-literal=applicationKeyId="$B2_APPLICATION_KEY_ID" \
+  --from-literal=applicationKey="$B2_APPLICATION_KEY" \
   -n crossplane-system
 
 # 3. Apply test resources

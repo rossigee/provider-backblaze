@@ -19,6 +19,7 @@ package apis
 
 import (
 	backblazev1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1"
+	backblazev1beta1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1beta1"
 	"github.com/rossigee/provider-backblaze/apis/v1beta1"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -26,10 +27,17 @@ import (
 
 func init() {
 	// Register the types with the Scheme so the components can map objects to GroupVersionKinds and back
-	// v1 cluster-scoped APIs (Crossplane v2)
+	// v1 cluster-scoped APIs (legacy - will be removed)
 	AddToSchemes = append(AddToSchemes,
 		backblazev1.SchemeBuilder.AddToScheme,
+	)
+	// v1beta1 ProviderConfig (cluster-scoped)
+	AddToSchemes = append(AddToSchemes,
 		v1beta1.SchemeBuilder.AddToScheme,
+	)
+	// v1beta1 managed resources (namespaced - Crossplane v2)
+	AddToSchemes = append(AddToSchemes,
+		backblazev1beta1.SchemeBuilder.AddToScheme,
 	)
 }
 

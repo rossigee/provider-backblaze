@@ -1,0 +1,265 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.21.0
+  name: buckets.backblaze.m.crossplane.io
+spec:
+  group: backblaze.m.crossplane.io
+  names:
+    categories:
+    - crossplane
+    - managed
+    - backblaze
+    kind: Bucket
+    listKind: BucketList
+    plural: buckets
+    singular: bucket
+  scope: Namespaced
+  versions:
+  - name: v1beta1
+    schema:
+      openAPIV3Schema:
+        description: A Bucket is a managed resource representing a Backblaze B2 bucket.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              forProvider:
+                description: BucketParameters are the configurable fields of a Bucket.
+                properties:
+                  bucketDeletionPolicy:
+                    description: BucketDeletionPolicy defines how to handle bucket
+                      deletion.
+                    enum:
+                    - DeleteIfEmpty
+                    - DeleteAll
+                    type: string
+                  bucketName:
+                    description: BucketName is the name of the bucket. Must be globally
+                      unique.
+                    type: string
+                  bucketType:
+                    default: allPrivate
+                    description: BucketType defines the access permissions for the
+                      bucket.
+                    enum:
+                    - allPublic
+                    - allPrivate
+                    type: string
+                  corsRules:
+                    description: CorsRules define CORS configuration for the bucket.
+                    items:
+                      description: CORSRule defines CORS configuration for a bucket.
+                      properties:
+                        allowedHeaders:
+                          description: AllowedHeaders specifies the allowed headers.
+                          items:
+                            type: string
+                          type: array
+                        allowedMethods:
+                          description: AllowedMethods specifies the allowed HTTP methods.
+                          items:
+                            type: string
+                          type: array
+                        allowedOrigins:
+                          description: AllowedOrigins specifies the allowed origins
+                            for CORS requests.
+                          items:
+                            type: string
+                          type: array
+                        corsRuleName:
+                          description: CorsRuleName is the name for this CORS rule.
+                          type: string
+                        exposeHeaders:
+                          description: ExposeHeaders specifies headers that browsers
+                            are allowed to access.
+                          items:
+                            type: string
+                          type: array
+                        maxAgeSeconds:
+                          description: MaxAgeSeconds specifies how long browsers can
+                            cache preflight responses.
+                          type: integer
+                      required:
+                      - allowedMethods
+                      - allowedOrigins
+                      - corsRuleName
+                      type: object
+                    type: array
+                  lifecycleRules:
+                    description: LifecycleRules define automatic file lifecycle management.
+                    items:
+                      description: LifecycleRule defines automatic file lifecycle
+                        management.
+                      properties:
+                        daysFromHidingToDeleting:
+                          description: DaysFromHidingToDeleting specifies how many
+                            days after hiding a file version it should be deleted.
+                          type: integer
+                        daysFromUploadingToHiding:
+                          description: DaysFromUploadingToHiding specifies how many
+                            days after uploading a file version it should be hidden.
+                          type: integer
+                        fileNamePrefix:
+                          description: FileNamePrefix limits the rule to files whose
+                            names start with this prefix.
+                          type: string
+                      type: object
+                    type: array
+                  region:
+                    default: us-west-001
+                    description: Region is the Backblaze B2 region where the bucket
+                      should be created.
+                    type: string
+                required:
+                - bucketName
+                type: object
+              managementPolicies:
+                default:
+                - '*'
+                description: |-
+                  THIS IS A BETA FIELD. It is on by default but can be opted out
+                  through a Crossplane feature flag.
+                  ManagementPolicies specify the array of actions Crossplane is allowed to
+                  take on the managed and external resources.
+                  See the design doc for more information: https://github.com/crossplane/crossplane/blob/499895a25d1a1a0ba1604944ef98ac7a1a71f197/design/design-doc-observe-only-resources.md?plain=1#L223
+                  and this one: https://github.com/crossplane/crossplane/blob/444267e84783136daa93568b364a5f01228cacbe/design/one-pager-ignore-changes.md
+                items:
+                  description: |-
+                    A ManagementAction represents an action that the Crossplane controllers
+                    can take on an external resource.
+                  enum:
+                  - Observe
+                  - Create
+                  - Update
+                  - Delete
+                  - LateInitialize
+                  - '*'
+                  type: string
+                type: array
+              providerConfigRef:
+                default:
+                  kind: ClusterProviderConfig
+                  name: default
+                description: |-
+                  ProviderConfigReference specifies how the provider that will be used to
+                  create, observe, update, and delete this managed resource should be
+                  configured.
+                properties:
+                  kind:
+                    description: Kind of the referenced object.
+                    type: string
+                  name:
+                    description: Name of the referenced object.
+                    type: string
+                required:
+                - kind
+                - name
+                type: object
+              writeConnectionSecretToRef:
+                description: |-
+                  WriteConnectionSecretToReference specifies the namespace and name of a
+                  Secret to which any connection details for this managed resource should
+                  be written. Connection details frequently include the endpoint, username,
+                  and password required to connect to the managed resource.
+                properties:
+                  name:
+                    description: Name of the secret.
+                    type: string
+                required:
+                - name
+                type: object
+            required:
+            - forProvider
+            type: object
+          status:
+            description: BucketStatus represents the observed state of a Bucket.
+            properties:
+              atProvider:
+                description: BucketObservation are the observable fields of a Bucket.
+                properties:
+                  accountId:
+                    description: AccountID is the account that owns the bucket.
+                    type: string
+                  bucketId:
+                    description: BucketID is the unique identifier for the bucket.
+                    type: string
+                  bucketName:
+                    description: BucketName is the name of the bucket.
+                    type: string
+                  region:
+                    description: Region is the region where the bucket is located.
+                    type: string
+                type: object
+              conditions:
+                description: Conditions of the resource.
+                items:
+                  description: A Condition that may apply to a resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        LastTransitionTime is the last time this condition transitioned from one
+                        status to another.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        A Message containing details about this condition's last transition from
+                        one status to another, if any.
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        ObservedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      type: integer
+                    reason:
+                      description: A Reason for this condition's last transition from
+                        one status to another.
+                      type: string
+                    status:
+                      description: Status of this condition; is it currently True,
+                        False, or Unknown?
+                      type: string
+                    type:
+                      description: |-
+                        Type of this condition. At most one of each condition type may apply to
+                        a resource at any point in time.
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

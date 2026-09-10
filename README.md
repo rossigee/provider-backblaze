@@ -11,7 +11,7 @@
 
 A [Crossplane](https://crossplane.io/) provider for [Backblaze B2](https://www.backblaze.com/b2/cloud-storage.html) cloud storage. It uses Backblaze B2's S3-compatible API to manage buckets, application keys, and access policies declaratively through Kubernetes custom resources.
 
-Resources are currently **cluster-scoped** (`backblaze.crossplane.io/v1`, `scope=Cluster`) — a namespaced v2-style migration has not yet been implemented for this provider.
+Resources support both **cluster-scoped** (`backblaze.crossplane.io/v1`) and **namespaced** (`*.backblaze.m.crossplane.io/v1beta1`) APIs for Crossplane v2 multi-tenancy.
 
 ## Container Registry
 
