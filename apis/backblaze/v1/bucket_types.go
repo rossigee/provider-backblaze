@@ -144,7 +144,7 @@ func (s *BucketStatus) SetConditions(c ...xpv1.Condition) {
 // A Bucket is an example API type.
 type Bucket struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
 	Spec              BucketSpec   `json:"spec"`
 	Status            BucketStatus `json:"status,omitempty"`
 }
@@ -153,7 +153,7 @@ type Bucket struct {
 // BucketList contains a list of Bucket
 type BucketList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []Bucket `json:"items"`
 }
 

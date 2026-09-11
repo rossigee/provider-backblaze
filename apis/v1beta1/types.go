@@ -52,7 +52,7 @@ type ProviderConfigStatus struct {
 // A ProviderConfig configures a Backblaze provider.
 type ProviderConfig struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec   ProviderConfigSpec   `json:"spec"`
 	Status ProviderConfigStatus `json:"status,omitempty"`
@@ -63,7 +63,7 @@ type ProviderConfig struct {
 // ProviderConfigList contains a list of ProviderConfig.
 type ProviderConfigList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []ProviderConfig `json:"items"`
 }
 

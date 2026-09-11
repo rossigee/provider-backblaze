@@ -96,7 +96,7 @@ func (s *PolicyStatus) SetConditions(c ...xpv1.Condition) {
 // A Policy represents a Backblaze B2 S3-compatible policy.
 type Policy struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
 	Spec              PolicySpec   `json:"spec"`
 	Status            PolicyStatus `json:"status,omitempty"`
 }
@@ -105,7 +105,7 @@ type Policy struct {
 // PolicyList contains a list of Policy
 type PolicyList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []Policy `json:"items"`
 }
 

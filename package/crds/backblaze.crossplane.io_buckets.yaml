@@ -57,6 +57,8 @@ spec:
               In CamelCase.
               More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
+          metadata:
+            type: object
           spec:
             description: A BucketSpec defines the desired state of a Bucket.
             properties:

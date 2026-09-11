@@ -103,7 +103,7 @@ func (s *UserStatus) SetConditions(c ...xpv1.Condition) {
 // A User represents a Backblaze B2 application key.
 type User struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
 	Spec              UserSpec   `json:"spec"`
 	Status            UserStatus `json:"status,omitempty"`
 }
@@ -112,7 +112,7 @@ type User struct {
 // UserList contains a list of User
 type UserList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []User `json:"items"`
 }
 
