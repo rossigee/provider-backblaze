@@ -19,6 +19,7 @@ package clients
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 
@@ -378,28 +379,23 @@ type B2ListKeysResponse struct {
 // B2 API Methods
 
 // authorizeAccount authorizes with B2 API and gets account info
+// B2 Native API uses HTTP Basic Auth in the Authorization header
 func (c *BackblazeClient) authorizeAccount(ctx context.Context) error {
 	// Check if we already have a valid token
 	if c.AuthToken != "" && time.Now().Before(c.tokenExpiration) {
 		return nil
 	}
 
-	req := B2AuthorizeAccountRequest{
-		KeyID:          c.ApplicationKeyID,
-		ApplicationKey: c.ApplicationKey,
-	}
+	// B2 Native API uses Basic Auth in header: "applicationKeyId:applicationKey" base64 encoded
+	creds := c.ApplicationKeyID + ":" + c.ApplicationKey
+	encoded := base64.StdEncoding.EncodeToString([]byte(creds))
 
-	reqBody, err := json.Marshal(req)
-	if err != nil {
-		return errors.Wrap(err, "failed to marshal authorize request")
-	}
-
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", B2AuthorizeAccountURL, bytes.NewBuffer(reqBody))
+	httpReq, err := http.NewRequestWithContext(ctx, "GET", B2AuthorizeAccountURL, nil)
 	if err != nil {
 		return errors.Wrap(err, "failed to create HTTP request")
 	}
 
-	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Basic "+encoded)
 
 	resp, err := c.HTTPClient.Do(httpReq)
 	if err != nil {
