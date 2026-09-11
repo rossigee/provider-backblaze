@@ -15,7 +15,7 @@ Resources support both **cluster-scoped** (`backblaze.crossplane.io/v1`) and **n
 
 ## Container Registry
 
-- **Primary**: `ghcr.io/rossigee/provider-backblaze:v0.16.0`
+- **Primary**: `ghcr.io/rossigee/provider-backblaze:v0.17.0`
 
 ## Features
 
@@ -40,7 +40,7 @@ kind: Provider
 metadata:
   name: provider-backblaze
 spec:
-  package: ghcr.io/rossigee/provider-backblaze:v0.16.0
+  package: ghcr.io/rossigee/provider-backblaze:v0.17.0
 EOF
 ```
 
