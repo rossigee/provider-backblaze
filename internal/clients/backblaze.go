@@ -315,8 +315,8 @@ const (
 
 // B2AuthorizeAccountRequest represents the request to authorize account
 type B2AuthorizeAccountRequest struct {
-	ApplicationKeyID string `json:"applicationKeyId"`
-	ApplicationKey   string `json:"applicationKey"`
+	KeyID          string `json:"keyId"`
+	ApplicationKey string `json:"applicationKey"`
 }
 
 // B2AuthorizeAccountResponse represents the response from authorize account
@@ -385,8 +385,8 @@ func (c *BackblazeClient) authorizeAccount(ctx context.Context) error {
 	}
 
 	req := B2AuthorizeAccountRequest{
-		ApplicationKeyID: c.ApplicationKeyID,
-		ApplicationKey:   c.ApplicationKey,
+		KeyID:          c.ApplicationKeyID,
+		ApplicationKey: c.ApplicationKey,
 	}
 
 	reqBody, err := json.Marshal(req)
