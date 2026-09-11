@@ -14,9 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package v1beta1 contains the v1beta1 group backblaze.crossplane.io resources of the provider.
+// Package v1beta1 contains the v1beta1 group backblaze.m.crossplane.io resources of the provider.
 // +kubebuilder:object:generate=true
-// +groupName=backblaze.crossplane.io
+// +groupName=backblaze.m.crossplane.io
 // +versionName=v1beta1
 package v1beta1
 
@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	Group   = "backblaze.crossplane.io"
+	Group   = "backblaze.m.crossplane.io"
 	Version = "v1beta1"
 )
 
