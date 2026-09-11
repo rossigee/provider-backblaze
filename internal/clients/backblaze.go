@@ -445,7 +445,7 @@ func (c *BackblazeClient) CreateApplicationKey(ctx context.Context, keyName stri
 		return nil, errors.Wrap(err, "failed to marshal create key request")
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", B2CreateKeyURL, bytes.NewBuffer(reqBody))
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.APIURL+"/b2api/v3/b2_create_key", bytes.NewBuffer(reqBody))
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create HTTP request")
 	}
@@ -489,7 +489,7 @@ func (c *BackblazeClient) DeleteApplicationKey(ctx context.Context, applicationK
 		return errors.Wrap(err, "failed to marshal delete key request")
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", B2DeleteKeyURL, bytes.NewBuffer(reqBody))
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.APIURL+"/b2api/v3/b2_delete_key", bytes.NewBuffer(reqBody))
 	if err != nil {
 		return errors.Wrap(err, "failed to create HTTP request")
 	}
@@ -530,7 +530,7 @@ func (c *BackblazeClient) GetApplicationKey(ctx context.Context, applicationKeyI
 			return nil, errors.Wrap(err, "failed to marshal list keys request")
 		}
 
-		httpReq, err := http.NewRequestWithContext(ctx, "POST", B2ListKeysURL, bytes.NewBuffer(reqBody))
+		httpReq, err := http.NewRequestWithContext(ctx, "POST", c.APIURL+"/b2api/v3/b2_list_keys", bytes.NewBuffer(reqBody))
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to create HTTP request")
 		}
