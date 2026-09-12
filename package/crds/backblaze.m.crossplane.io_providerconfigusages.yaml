@@ -4,9 +4,9 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.21.0
-  name: providerconfigusages.backblaze.crossplane.io
+  name: providerconfigusages.backblaze.m.crossplane.io
 spec:
-  group: backblaze.crossplane.io
+  group: backblaze.m.crossplane.io
   names:
     kind: ProviderConfigUsage
     listKind: ProviderConfigUsageList

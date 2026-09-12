@@ -31,7 +31,7 @@ import (
 	"github.com/rossigee/provider-backblaze/apis/v1beta1"
 )
 
-const controllerName = "providerconfig.backblaze.crossplane.io"
+const controllerName = "providerconfig.backblaze.m.crossplane.io"
 
 // Setup registers the ProviderConfig controller.
 func Setup(mgr ctrl.Manager) error {

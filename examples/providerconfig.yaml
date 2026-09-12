@@ -1,7 +1,8 @@
-apiVersion: backblaze.crossplane.io/v1beta1
+apiVersion: backblaze.m.crossplane.io/v1beta1
 kind: ProviderConfig
 metadata:
   name: default
+  namespace: crossplane-system
 spec:
   # Backblaze B2 region where resources should be created
   # Common regions: us-west-001, us-west-002, eu-central-003

@@ -32,7 +32,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 
 	"github.com/rossigee/provider-backblaze/apis"
-	v1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1"
+	v1beta1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1beta1"
 	backblazecontroller "github.com/rossigee/provider-backblaze/internal/controller"
 	"github.com/rossigee/provider-backblaze/internal/features"
 	"github.com/rossigee/provider-backblaze/internal/tracing"
@@ -169,9 +169,9 @@ func main() {
 	kingpin.FatalIfError(backblazecontroller.Setup(mgr, o), "Cannot setup controllers")
 
 	// Register state metrics for managed resources
-	kingpin.FatalIfError(mgr.Add(statemetrics.NewMRStateRecorder(mgr.GetClient(), o.Logger, o.MetricOptions.MRStateMetrics, &v1.BucketList{}, o.MetricOptions.PollStateMetricInterval)), "Cannot register state metrics for Bucket")
-	kingpin.FatalIfError(mgr.Add(statemetrics.NewMRStateRecorder(mgr.GetClient(), o.Logger, o.MetricOptions.MRStateMetrics, &v1.UserList{}, o.MetricOptions.PollStateMetricInterval)), "Cannot register state metrics for User")
-	kingpin.FatalIfError(mgr.Add(statemetrics.NewMRStateRecorder(mgr.GetClient(), o.Logger, o.MetricOptions.MRStateMetrics, &v1.PolicyList{}, o.MetricOptions.PollStateMetricInterval)), "Cannot register state metrics for Policy")
+	kingpin.FatalIfError(mgr.Add(statemetrics.NewMRStateRecorder(mgr.GetClient(), o.Logger, o.MetricOptions.MRStateMetrics, &v1beta1.BucketList{}, o.MetricOptions.PollStateMetricInterval)), "Cannot register state metrics for Bucket")
+	kingpin.FatalIfError(mgr.Add(statemetrics.NewMRStateRecorder(mgr.GetClient(), o.Logger, o.MetricOptions.MRStateMetrics, &v1beta1.UserList{}, o.MetricOptions.PollStateMetricInterval)), "Cannot register state metrics for User")
+	kingpin.FatalIfError(mgr.Add(statemetrics.NewMRStateRecorder(mgr.GetClient(), o.Logger, o.MetricOptions.MRStateMetrics, &v1beta1.PolicyList{}, o.MetricOptions.PollStateMetricInterval)), "Cannot register state metrics for Policy")
 
 	kingpin.FatalIfError(mgr.AddHealthzCheck("healthz", healthz.Ping), "Cannot add health check")
 	kingpin.FatalIfError(mgr.AddReadyzCheck("readyz", healthz.Ping), "Cannot add ready check")

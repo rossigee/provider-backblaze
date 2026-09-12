@@ -27,7 +27,7 @@ import (
 	xpv1 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"github.com/pkg/errors"
 
-	backblazev1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1"
+	backblazev1beta1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1beta1"
 	apisv1beta1 "github.com/rossigee/provider-backblaze/apis/v1beta1"
 	"github.com/rossigee/provider-backblaze/internal/clients"
 
@@ -62,7 +62,7 @@ func SetupPolicy(mgr ctrl.Manager, o controller.Options) error {
 
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("policy-controller").
-		For(&backblazev1.Policy{}).
+		For(&backblazev1beta1.Policy{}).
 		Watches(&apisv1beta1.ProviderConfig{}, handler.Funcs{}).
 		Complete(r)
 }
@@ -78,7 +78,7 @@ func (r *PolicyReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 	logger := log.FromContext(ctx).WithValues("policy", req.NamespacedName)
 
 	// Fetch the Policy instance
-	policy := &backblazev1.Policy{}
+	policy := &backblazev1beta1.Policy{}
 	err := r.Client.Get(ctx, req.NamespacedName, policy)
 	if err != nil {
 		if client.IgnoreNotFound(err) == nil {
@@ -134,7 +134,7 @@ func (r *PolicyReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 	return reconcile.Result{RequeueAfter: 5 * time.Minute}, r.Client.Status().Update(ctx, policy)
 }
 
-func (r *PolicyReconciler) handleDeletion(ctx context.Context, policy *backblazev1.Policy) (reconcile.Result, error) {
+func (r *PolicyReconciler) handleDeletion(ctx context.Context, policy *backblazev1beta1.Policy) (reconcile.Result, error) {
 	logger := log.FromContext(ctx)
 
 	// Respect managementPolicies - if Observe only, don't delete external resource
@@ -152,7 +152,7 @@ func (r *PolicyReconciler) handleDeletion(ctx context.Context, policy *backblaze
 	return reconcile.Result{}, nil
 }
 
-func (r *PolicyReconciler) createPolicy(ctx context.Context, policy *backblazev1.Policy, service *clients.BackblazeClient) error {
+func (r *PolicyReconciler) createPolicy(ctx context.Context, policy *backblazev1beta1.Policy, service *clients.BackblazeClient) error {
 	// Validate policy parameters
 	params := policy.Spec.ForProvider
 	if (params.AllowBucket != nil && params.RawPolicy != nil) ||
@@ -196,7 +196,7 @@ func (r *PolicyReconciler) createPolicy(ctx context.Context, policy *backblazev1
 	return nil
 }
 
-func (r *PolicyReconciler) getBackblazeClient(ctx context.Context, policy *backblazev1.Policy) (*clients.BackblazeClient, error) {
+func (r *PolicyReconciler) getBackblazeClient(ctx context.Context, policy *backblazev1beta1.Policy) (*clients.BackblazeClient, error) {
 	// Determine ProviderConfig name - use "default" if not specified
 	providerConfigName := "default"
 	if policy.GetProviderConfigReference() != nil {
@@ -249,7 +249,7 @@ func (r *PolicyReconciler) generateSimplePolicy(bucketName string) (string, erro
 	return string(policyBytes), nil
 }
 
-func (r *PolicyReconciler) setCondition(policy *backblazev1.Policy, conditionType xpv1.ConditionType, status, reason, message string) {
+func (r *PolicyReconciler) setCondition(policy *backblazev1beta1.Policy, conditionType xpv1.ConditionType, status, reason, message string) {
 	policy.SetConditions(xpv1.Condition{
 		Type:               conditionType,
 		Status:             corev1.ConditionStatus(status),

@@ -21,13 +21,13 @@ import (
 
 	xpv1 "github.com/crossplane/crossplane/apis/v2/core/v2"
 
-	backblazev1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1"
+	backblazev1beta1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1beta1"
 )
 
 func TestUserGetKeyName(t *testing.T) {
-	user := &backblazev1.User{
-		Spec: backblazev1.UserSpec{
-			ForProvider: backblazev1.UserParameters{
+	user := &backblazev1beta1.User{
+		Spec: backblazev1beta1.UserSpec{
+			ForProvider: backblazev1beta1.UserParameters{
 				KeyName: "test-key",
 			},
 		},
@@ -40,7 +40,7 @@ func TestUserGetKeyName(t *testing.T) {
 
 func TestUserSetCondition(t *testing.T) {
 	r := &UserReconciler{}
-	user := &backblazev1.User{}
+	user := &backblazev1beta1.User{}
 
 	// Test that setCondition doesn't panic - this validates the method signature and basic functionality
 	r.setCondition(user, xpv1.TypeReady, "True", "Available", "User is ready")
@@ -49,15 +49,16 @@ func TestUserSetCondition(t *testing.T) {
 }
 
 func TestCreateApplicationKey(t *testing.T) {
-	user := &backblazev1.User{
-		Spec: backblazev1.UserSpec{
-			ForProvider: backblazev1.UserParameters{
+	user := &backblazev1beta1.User{
+		Spec: backblazev1beta1.UserSpec{
+			ManagedResourceSpec: xpv1.ManagedResourceSpec{
+				WriteConnectionSecretToReference: &xpv1.LocalSecretReference{
+					Name: "test-secret",
+				},
+			},
+			ForProvider: backblazev1beta1.UserParameters{
 				KeyName:      "test-key",
 				Capabilities: []string{"listBuckets", "readFiles"},
-				WriteSecretToRef: xpv1.SecretReference{
-					Name:      "test-secret",
-					Namespace: "default",
-				},
 			},
 		},
 	}
@@ -73,7 +74,7 @@ func TestCreateApplicationKey(t *testing.T) {
 	if len(user.Spec.ForProvider.Capabilities) != 2 {
 		t.Error("User capabilities not set correctly")
 	}
-	if user.Spec.ForProvider.WriteSecretToRef.Name != "test-secret" {
+	if user.GetWriteConnectionSecretToReference() == nil || user.GetWriteConnectionSecretToReference().Name != "test-secret" {
 		t.Error("Secret reference not set correctly")
 	}
 }

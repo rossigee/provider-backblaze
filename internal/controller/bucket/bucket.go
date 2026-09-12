@@ -26,7 +26,7 @@ import (
 	xpv1 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"github.com/pkg/errors"
 
-	backblazev1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1"
+	backblazev1beta1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1beta1"
 	apisv1beta1 "github.com/rossigee/provider-backblaze/apis/v1beta1"
 	"github.com/rossigee/provider-backblaze/internal/clients"
 
@@ -67,7 +67,7 @@ func SetupBucket(mgr ctrl.Manager, o controller.Options) error {
 
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("bucket-controller").
-		For(&backblazev1.Bucket{}).
+		For(&backblazev1beta1.Bucket{}).
 		Watches(&apisv1beta1.ProviderConfig{}, handler.Funcs{}).
 		Complete(r)
 }
@@ -83,7 +83,7 @@ func (r *BucketReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 	logger := log.FromContext(ctx).WithValues("bucket", req.NamespacedName)
 
 	// Fetch the Bucket instance
-	bucket := &backblazev1.Bucket{}
+	bucket := &backblazev1beta1.Bucket{}
 	err := r.Client.Get(ctx, req.NamespacedName, bucket)
 	if err != nil {
 		if client.IgnoreNotFound(err) == nil {
@@ -164,7 +164,7 @@ func (r *BucketReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 	return reconcile.Result{RequeueAfter: 5 * time.Minute}, nil
 }
 
-func (r *BucketReconciler) getBackblazeClient(ctx context.Context, bucket *backblazev1.Bucket) (*clients.BackblazeClient, error) {
+func (r *BucketReconciler) getBackblazeClient(ctx context.Context, bucket *backblazev1beta1.Bucket) (*clients.BackblazeClient, error) {
 	// Determine ProviderConfig name - use "default" if not specified
 	providerConfigName := "default"
 	if bucket.GetProviderConfigReference() != nil {
@@ -193,7 +193,7 @@ func (r *BucketReconciler) getBackblazeClient(ctx context.Context, bucket *backb
 	return clients.NewBackblazeClient(*cfg)
 }
 
-func (r *BucketReconciler) handleDeletion(ctx context.Context, bucket *backblazev1.Bucket) (reconcile.Result, error) {
+func (r *BucketReconciler) handleDeletion(ctx context.Context, bucket *backblazev1beta1.Bucket) (reconcile.Result, error) {
 	logger := log.FromContext(ctx)
 
 	// Respect managementPolicies - if Observe only, don't delete external resource
@@ -231,7 +231,7 @@ func (r *BucketReconciler) handleDeletion(ctx context.Context, bucket *backblaze
 	return reconcile.Result{}, nil
 }
 
-func (r *BucketReconciler) setCondition(bucket *backblazev1.Bucket, conditionType xpv1.ConditionType, status, reason, message string) {
+func (r *BucketReconciler) setCondition(bucket *backblazev1beta1.Bucket, conditionType xpv1.ConditionType, status, reason, message string) {
 	bucket.SetConditions(xpv1.Condition{
 		Type:               conditionType,
 		Status:             corev1.ConditionStatus(status),

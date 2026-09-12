@@ -34,7 +34,6 @@ metadata:
 spec:
   permissionRequests:
   - apiGroups:
-    - backblaze.crossplane.io
     - backblaze.m.crossplane.io
     resources:
     - buckets

@@ -11,9 +11,13 @@ Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
-limitations under the License.
+ limitations under the License.
 */
 
+// Package v1beta1 contains the v1beta1 group backblaze.m.crossplane.io resources of the provider.
+// +kubebuilder:object:generate=true
+// +groupName=backblaze.m.crossplane.io
+// +versionName=v1beta1
 package v1beta1
 
 import (

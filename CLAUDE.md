@@ -8,17 +8,17 @@
 
 ### ✅ **Complete Implementation**
 - ✅ **Directory Structure**: Standard Crossplane provider layout
-- ✅ **Go Module**: Configured with crossplane-runtime v1.18.0 and AWS SDK for S3 compatibility
-- ✅ **API Types**: Comprehensive resource definitions for Bucket, User, and Policy (v1 + v1beta1)
+- ✅ **Go Module**: Configured with crossplane-runtime v2 and AWS SDK for S3 compatibility
+- ✅ **API Types**: Namespaced resource definitions for Bucket, User, and Policy (v1beta1 only)
 - ✅ **Client Implementation**: S3-compatible Backblaze B2 client using AWS SDK
 - ✅ **Controllers**: Complete bucket, user, and policy controllers with full lifecycle management
-- ✅ **Crossplane v2 Support**: Full dual-scope architecture with namespace isolation
+- ✅ **Crossplane v2 Support**: Namespaced v1beta1 APIs (`backblaze.m.crossplane.io`) with namespace isolation
 - ✅ **User Controller**: Application key management with v1beta1 support
 - ✅ **Policy Controller**: S3-compatible policy management with v1beta1 support
 - ✅ **Integration Tests**: Comprehensive test suite for v2 functionality
 - ✅ **Validation Scripts**: Deployment validation and migration tools
 - ✅ **Documentation**: Complete README, migration guide, and API documentation
-- ✅ **Build System**: Makefile with dual-scope CRD generation and testing
+- ✅ **Build System**: Makefile with CRD generation and testing
 
 ### 🔄 **Future Enhancements**
 - **Advanced Features**: B2-specific lifecycle rules, CORS, encryption
@@ -36,10 +36,8 @@
 ### **Resource Architecture**
 ```
 APIs:
-├── v1beta1/           # Provider configuration
-├── bucket/v1/         # Bucket management
-├── user/v1/           # Application key management  
-├── policy/v1/         # S3-compatible policies
+├── v1beta1/                  # Provider configuration
+├── backblaze/v1beta1/        # Bucket, User, Policy management (namespaced)
 ```
 
 ### **Authentication Strategy**

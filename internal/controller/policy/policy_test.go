@@ -21,15 +21,15 @@ import (
 
 	xpv1 "github.com/crossplane/crossplane/apis/v2/core/v2"
 
-	backblazev1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1"
+	backblazev1beta1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1beta1"
 )
 
 func TestPolicyGetPolicyName(t *testing.T) {
 	// Test with explicit policy name
 	policyName := "test-policy"
-	policy := &backblazev1.Policy{
-		Spec: backblazev1.PolicySpec{
-			ForProvider: backblazev1.PolicyParameters{
+	policy := &backblazev1beta1.Policy{
+		Spec: backblazev1beta1.PolicySpec{
+			ForProvider: backblazev1beta1.PolicyParameters{
 				PolicyName: &policyName,
 			},
 		},
@@ -40,7 +40,7 @@ func TestPolicyGetPolicyName(t *testing.T) {
 	}
 
 	// Test with no policy name (should use resource name)
-	policy2 := &backblazev1.Policy{}
+	policy2 := &backblazev1beta1.Policy{}
 	policy2.SetName("resource-name")
 	policy2.Spec.ForProvider.PolicyName = nil
 
@@ -51,7 +51,7 @@ func TestPolicyGetPolicyName(t *testing.T) {
 
 func TestPolicySetCondition(t *testing.T) {
 	r := &PolicyReconciler{}
-	policy := &backblazev1.Policy{}
+	policy := &backblazev1beta1.Policy{}
 
 	// Test that setCondition doesn't panic - this validates the method signature and basic functionality
 	r.setCondition(policy, xpv1.TypeReady, "True", "Available", "Policy is ready")
@@ -80,34 +80,34 @@ func TestCreatePolicyValidation(t *testing.T) {
 	invalidPolicy := `{invalid json`
 
 	cases := map[string]struct {
-		params  backblazev1.PolicyParameters
+		params  backblazev1beta1.PolicyParameters
 		wantErr bool
 	}{
 		"valid_allowBucket": {
-			params: backblazev1.PolicyParameters{
+			params: backblazev1beta1.PolicyParameters{
 				AllowBucket: &allowBucket,
 			},
 			wantErr: false,
 		},
 		"valid_rawPolicy": {
-			params: backblazev1.PolicyParameters{
+			params: backblazev1beta1.PolicyParameters{
 				RawPolicy: &rawPolicy,
 			},
 			wantErr: false,
 		},
 		"both_params_provided": {
-			params: backblazev1.PolicyParameters{
+			params: backblazev1beta1.PolicyParameters{
 				AllowBucket: &allowBucket,
 				RawPolicy:   &rawPolicy,
 			},
 			wantErr: true,
 		},
 		"no_params_provided": {
-			params:  backblazev1.PolicyParameters{},
+			params:  backblazev1beta1.PolicyParameters{},
 			wantErr: true,
 		},
 		"invalid_json": {
-			params: backblazev1.PolicyParameters{
+			params: backblazev1beta1.PolicyParameters{
 				RawPolicy: &invalidPolicy,
 			},
 			wantErr: false, // JSON validation would happen later in the actual implementation

@@ -87,3 +87,11 @@ type PolicyList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []Policy `json:"items"`
 }
+
+// GetPolicyName returns the policy name from the Policy resource.
+func (mg *Policy) GetPolicyName() string {
+	if mg.Spec.ForProvider.PolicyName != nil {
+		return *mg.Spec.ForProvider.PolicyName
+	}
+	return mg.GetName()
+}

@@ -11,7 +11,7 @@
 
 A [Crossplane](https://crossplane.io/) provider for [Backblaze B2](https://www.backblaze.com/b2/cloud-storage.html) cloud storage. It uses Backblaze B2's S3-compatible API to manage buckets, application keys, and access policies declaratively through Kubernetes custom resources.
 
-Resources support both **cluster-scoped** (`backblaze.crossplane.io/v1`) and **namespaced** (`*.backblaze.m.crossplane.io/v1beta1`) APIs for Crossplane v2 multi-tenancy.
+All resources are **namespaced** (`backblaze.m.crossplane.io/v1beta1`) for Crossplane v2 multi-tenancy.
 
 ## Container Registry
 
@@ -54,10 +54,11 @@ kubectl create secret generic backblaze-creds \
 ```
 
 ```yaml
-apiVersion: backblaze.crossplane.io/v1beta1
+apiVersion: backblaze.m.crossplane.io/v1beta1
 kind: ProviderConfig
 metadata:
   name: default
+  namespace: crossplane-system
 spec:
   backblazeRegion: us-west-001
   credentials:
@@ -70,32 +71,34 @@ spec:
 ## Usage
 
 ```yaml
-apiVersion: backblaze.crossplane.io/v1
+apiVersion: backblaze.m.crossplane.io/v1beta1
 kind: Bucket
 metadata:
   name: my-storage
+  namespace: default
 spec:
   forProvider:
     bucketName: my-unique-bucket-name
     region: us-west-001
     bucketType: allPrivate
-    bucketDeletionPolicy: DeleteIfEmpty
   providerConfigRef:
     name: default
 ```
 
 ```yaml
-apiVersion: backblaze.crossplane.io/v1
+apiVersion: backblaze.m.crossplane.io/v1beta1
 kind: User
 metadata:
   name: read-only-key
+  namespace: default
 spec:
   forProvider:
     keyName: "read-only-application-key"
     capabilities:
       - "listFiles"
       - "readFiles"
-    bucketId: "your-bucket-id"
+  writeConnectionSecretToRef:
+    name: read-only-key-secret
   providerConfigRef:
     name: default
 ```
@@ -104,10 +107,12 @@ spec:
 
 | Resource | API Group | Description |
 |----------|-----------|-------------|
-| Bucket | `backblaze.crossplane.io/v1` | Buckets, with lifecycle rules and CORS |
-| User | `backblaze.crossplane.io/v1` | Application keys (capabilities, bucket/prefix restrictions) |
-| Policy | `backblaze.crossplane.io/v1` | S3-compatible access policies (simple bucket allow or raw JSON) |
-| ProviderConfig | `backblaze.crossplane.io/v1beta1` | Provider credentials and region configuration |
+| Bucket | `backblaze.m.crossplane.io/v1beta1` | Buckets (lifecycle/CORS accepted, not yet applied) |
+| User | `backblaze.m.crossplane.io/v1beta1` | Application keys (bucket/prefix restrictions accepted, not yet enforced) |
+| Policy | `backblaze.m.crossplane.io/v1beta1` | Policy documents, validated and recorded in status only |
+| ProviderConfig | `backblaze.m.crossplane.io/v1beta1` | Provider credentials and region configuration |
+
+See [docs/index.md](docs/index.md) for the full reference and [API coverage gaps](docs/index.md#api-coverage-gaps).
 
 ## Development
 

@@ -24,7 +24,6 @@ limitations under the License.
 //go:generate go run -tags generate sigs.k8s.io/controller-tools/cmd/controller-gen object:headerFile=../hack/boilerplate.go.txt paths=./... crd:allowDangerousTypes=true output:artifacts:config=../package/crds
 
 // Generate crossplane-runtime methodsets (resource.Managed, etc)
-//go:generate go run -tags generate github.com/crossplane/crossplane-tools/cmd/angryjet generate-methodsets --header-file=../hack/boilerplate.go.txt ./backblaze/v1/...
-// NOTE: v1beta1 uses manual deepcopy - see zz_generated.deepcopy.go
+//go:generate go run -tags generate github.com/crossplane/crossplane-tools/cmd/angryjet generate-methodsets --header-file=../hack/boilerplate.go.txt ./backblaze/v1beta1/...
 
 package apis

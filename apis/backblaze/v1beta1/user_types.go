@@ -94,3 +94,8 @@ type UserList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []User `json:"items"`
 }
+
+// GetKeyName returns the key name from the User resource.
+func (mg *User) GetKeyName() string {
+	return mg.Spec.ForProvider.KeyName
+}

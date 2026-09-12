@@ -36,10 +36,11 @@ kubectl create secret generic backblaze-creds \
 2. Create a ProviderConfig:
 
 ```yaml
-apiVersion: backblaze.crossplane.io/v1beta1
+apiVersion: backblaze.m.crossplane.io/v1beta1
 kind: ProviderConfig
 metadata:
   name: default
+  namespace: crossplane-system
 spec:
   backblazeRegion: us-west-001
   credentials:
@@ -52,10 +53,11 @@ spec:
 3. Create a Bucket:
 
 ```yaml
-apiVersion: bucket.backblaze.crossplane.io/v1
+apiVersion: backblaze.m.crossplane.io/v1beta1
 kind: Bucket
 metadata:
   name: my-bucket
+  namespace: default
 spec:
   forProvider:
     bucketName: my-unique-bucket-name

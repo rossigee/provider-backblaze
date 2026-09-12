@@ -1,27 +1,28 @@
 # Provider Backblaze Documentation
 
-A Crossplane provider for managing Backblaze B2 storage resources.
+A Crossplane v2 provider for managing Backblaze B2 storage resources. All resources are namespaced (`backblaze.m.crossplane.io/v1beta1`) with full multi-tenancy support.
 
 ## Quick Links
 
+- [Configuration](configuration.md) — Authentication and connection setup
+- [Getting Started](getting-started.md) — Installation and first resources
 - [Development](development.md) — Building, testing, and contributing
 
 ## Resource Documentation
 
-Resources are documented in the API types. Individual resource documentation will be added to the [resources/](resources/) folder.
+| Resource | API Group | Description |
+|----------|-----------|-------------|
+| [Bucket](resources/bucket.md) | `backblaze.m.crossplane.io/v1beta1` | B2 bucket management |
+| [User](resources/user.md) | `backblaze.m.crossplane.io/v1beta1` | Application key management |
+| [Policy](resources/policy.md) | `backblaze.m.crossplane.io/v1beta1` | S3-compatible policy documents (status-only) |
+| ProviderConfig | `backblaze.m.crossplane.io/v1beta1` | Provider credentials and region |
 
-### Storage Resources
+## API Coverage Gaps
 
-| Resource | v1 API Group | v1beta1 API Group | Description |
-|----------|--------------|-------------------|-------------|
-| Bucket | `backblaze.crossplane.io/v1` | `bucket.backblaze.m.crossplane.io/v1beta1` | B2 bucket management |
-| Policy | `backblaze.crossplane.io/v1` | `policy.backblaze.m.crossplane.io/v1beta1` | Bucket policies |
-| User | `backblaze.crossplane.io/v1` | `user.backblaze.m.crossplane.io/v1beta1` | Application key management |
-| ProviderConfig | `backblaze.crossplane.io/v1beta1` | — | Provider credentials and region |
+B2 capabilities not yet exposed by this provider:
 
-## API Versions
-
-- **v1**: Cluster-scoped resources (legacy)
-- **v1beta1**: Namespaced resources with Crossplane v2 multi-tenancy support
-
-See the [Migration Guide](crossplane-v2-migration.md) for details on upgrading to v1beta1.
+- **Bucket updates**: `lifecycleRules` and `corsRules` are accepted in spec but never applied; spec changes after creation are ignored (no update path).
+- **Bucket deletion**: `bucketDeletionPolicy: DeleteAll` is accepted but objects are not emptied before `DeleteBucket`; buckets must already be empty.
+- **Key restrictions**: `User` `bucketId`/`namePrefix` are accepted but not passed to `b2_create_key`; keys are created unrestricted.
+- **Policy enforcement**: `Policy` is validated and recorded in status only; B2 has no bucket-policy API and nothing is applied externally.
+- **Missing resources**: file/large-file management, bucket versioning/SSE/ObjectLock settings, and cross-account replication are not modeled.

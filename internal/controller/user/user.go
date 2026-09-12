@@ -25,7 +25,7 @@ import (
 	xpv1 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"github.com/pkg/errors"
 
-	backblazev1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1"
+	backblazev1beta1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1beta1"
 	apisv1beta1 "github.com/rossigee/provider-backblaze/apis/v1beta1"
 	"github.com/rossigee/provider-backblaze/internal/clients"
 
@@ -66,7 +66,7 @@ func SetupUser(mgr ctrl.Manager, o controller.Options) error {
 
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("user-controller").
-		For(&backblazev1.User{}).
+		For(&backblazev1beta1.User{}).
 		Watches(&apisv1beta1.ProviderConfig{}, handler.Funcs{}).
 		Complete(r)
 }
@@ -82,7 +82,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req reconcile.Request) (
 	logger := log.FromContext(ctx).WithValues("user", req.NamespacedName)
 
 	// Fetch the User instance
-	user := &backblazev1.User{}
+	user := &backblazev1beta1.User{}
 	err := r.Client.Get(ctx, req.NamespacedName, user)
 	if err != nil {
 		if client.IgnoreNotFound(err) == nil {
@@ -138,7 +138,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req reconcile.Request) (
 	return reconcile.Result{RequeueAfter: 5 * time.Minute}, r.Client.Status().Update(ctx, user)
 }
 
-func (r *UserReconciler) handleDeletion(ctx context.Context, user *backblazev1.User) (reconcile.Result, error) {
+func (r *UserReconciler) handleDeletion(ctx context.Context, user *backblazev1beta1.User) (reconcile.Result, error) {
 	logger := log.FromContext(ctx)
 
 	// Respect managementPolicies - if Observe only, don't delete external resource
@@ -179,7 +179,7 @@ func (r *UserReconciler) handleDeletion(ctx context.Context, user *backblazev1.U
 	return reconcile.Result{}, nil
 }
 
-func (r *UserReconciler) createApplicationKey(ctx context.Context, user *backblazev1.User, service *clients.BackblazeClient) error {
+func (r *UserReconciler) createApplicationKey(ctx context.Context, user *backblazev1beta1.User, service *clients.BackblazeClient) error {
 	// Call real B2 API to create application key
 	var validDuration *int
 	if user.Spec.ForProvider.ValidDurationInSeconds != nil {
@@ -217,7 +217,7 @@ func (r *UserReconciler) createApplicationKey(ctx context.Context, user *backbla
 	return r.writeSecret(ctx, user, keyResp.ApplicationKeyID, keyResp.ApplicationKey)
 }
 
-func (r *UserReconciler) getBackblazeClient(ctx context.Context, user *backblazev1.User) (*clients.BackblazeClient, error) {
+func (r *UserReconciler) getBackblazeClient(ctx context.Context, user *backblazev1beta1.User) (*clients.BackblazeClient, error) {
 	// Determine ProviderConfig name - use "default" if not specified
 	providerConfigName := "default"
 	if user.GetProviderConfigReference() != nil {
@@ -247,13 +247,16 @@ func (r *UserReconciler) getBackblazeClient(ctx context.Context, user *backblaze
 }
 
 // writeSecret creates or updates the secret containing the application key credentials
-func (r *UserReconciler) writeSecret(ctx context.Context, user *backblazev1.User, applicationKeyID, applicationKey string) error {
-	secretRef := user.Spec.ForProvider.WriteSecretToRef
+func (r *UserReconciler) writeSecret(ctx context.Context, user *backblazev1beta1.User, applicationKeyID, applicationKey string) error {
+	secretRef := user.GetWriteConnectionSecretToReference()
+	if secretRef == nil || secretRef.Name == "" {
+		return nil
+	}
 
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secretRef.Name,
-			Namespace: secretRef.Namespace,
+			Namespace: user.Namespace,
 		},
 		Type: corev1.SecretTypeOpaque,
 		Data: map[string][]byte{
@@ -266,20 +269,23 @@ func (r *UserReconciler) writeSecret(ctx context.Context, user *backblazev1.User
 }
 
 // deleteSecret removes the secret containing the application key credentials
-func (r *UserReconciler) deleteSecret(ctx context.Context, user *backblazev1.User) error {
-	secretRef := user.Spec.ForProvider.WriteSecretToRef
+func (r *UserReconciler) deleteSecret(ctx context.Context, user *backblazev1beta1.User) error {
+	secretRef := user.GetWriteConnectionSecretToReference()
+	if secretRef == nil || secretRef.Name == "" {
+		return nil
+	}
 
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secretRef.Name,
-			Namespace: secretRef.Namespace,
+			Namespace: user.Namespace,
 		},
 	}
 
 	return client.IgnoreNotFound(r.Client.Delete(ctx, secret))
 }
 
-func (r *UserReconciler) setCondition(user *backblazev1.User, conditionType xpv1.ConditionType, status, reason, message string) {
+func (r *UserReconciler) setCondition(user *backblazev1beta1.User, conditionType xpv1.ConditionType, status, reason, message string) {
 	user.SetConditions(xpv1.Condition{
 		Type:               conditionType,
 		Status:             corev1.ConditionStatus(status),

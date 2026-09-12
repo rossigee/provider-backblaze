@@ -134,3 +134,8 @@ type BucketList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []Bucket `json:"items"`
 }
+
+// GetBucketName returns the bucket name from the Bucket resource.
+func (mg *Bucket) GetBucketName() string {
+	return mg.Spec.ForProvider.BucketName
+}

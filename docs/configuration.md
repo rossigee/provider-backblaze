@@ -7,10 +7,11 @@ Guide for configuring the Backblaze provider.
 Create a ProviderConfig to configure connection settings:
 
 ```yaml
-apiVersion: backblaze.crossplane.io/v1beta1
+apiVersion: backblaze.m.crossplane.io/v1beta1
 kind: ProviderConfig
 metadata:
   name: default
+  namespace: crossplane-system
 spec:
   backblazeRegion: us-west-001
   credentials:
@@ -43,10 +44,11 @@ data:
 Specify bucket settings in your managed resources:
 
 ```yaml
-apiVersion: bucket.backblaze.crossplane.io/v1
+apiVersion: backblaze.m.crossplane.io/v1beta1
 kind: Bucket
 metadata:
   name: my-bucket
+  namespace: default
 spec:
   forProvider:
     bucketName: my-bucket

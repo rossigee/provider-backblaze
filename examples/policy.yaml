@@ -1,4 +1,4 @@
-apiVersion: policy.backblaze.m.crossplane.io/v1beta1
+apiVersion: backblaze.m.crossplane.io/v1beta1
 kind: Policy
 metadata:
   name: my-bucket-allow-all-policy
@@ -18,11 +18,10 @@ spec:
   providerConfigRef:
     name: default
 
-  deletionPolicy: Delete
 
 ---
 # Advanced example with raw S3-compatible policy
-apiVersion: policy.backblaze.m.crossplane.io/v1beta1
+apiVersion: backblaze.m.crossplane.io/v1beta1
 kind: Policy
 metadata:
   name: my-bucket-read-only-policy
@@ -56,11 +55,10 @@ spec:
   providerConfigRef:
     name: default
 
-  deletionPolicy: Delete
 
 ---
 # Example with specific principal and conditions
-apiVersion: policy.backblaze.m.crossplane.io/v1beta1
+apiVersion: backblaze.m.crossplane.io/v1beta1
 kind: Policy
 metadata:
   name: my-bucket-conditional-policy
@@ -109,5 +107,3 @@ spec:
 
   providerConfigRef:
     name: default
-
-  deletionPolicy: Delete

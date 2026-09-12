@@ -42,7 +42,7 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 	if err := providerconfig.Setup(mgr); err != nil {
 		return err
 	}
-	// v1 controllers (cluster-scoped - Crossplane v2)
+	// v1beta1 controllers (namespaced - Crossplane v2)
 	if err := bucket.SetupBucket(mgr, o); err != nil {
 		return err
 	}
@@ -59,8 +59,8 @@ func setupRBAC(c client.Client, l logging.Logger) error {
 	ctx := context.Background()
 
 	rules := []rbacv1.PolicyRule{
-		{APIGroups: []string{"backblaze.crossplane.io"}, Resources: []string{"buckets", "buckets/status", "policies", "policies/status", "providerconfigs", "providerconfigs/status", "providerconfigusages", "providerconfigusages/status", "users", "users/status"}, Verbs: []string{"get", "list", "watch", "update", "patch", "create"}},
-		{APIGroups: []string{"backblaze.crossplane.io"}, Resources: []string{"*/finalizers"}, Verbs: []string{"update"}},
+		{APIGroups: []string{"backblaze.m.crossplane.io"}, Resources: []string{"buckets", "buckets/status", "policies", "policies/status", "providerconfigs", "providerconfigs/status", "providerconfigusages", "providerconfigusages/status", "users", "users/status"}, Verbs: []string{"get", "list", "watch", "update", "patch", "create"}},
+		{APIGroups: []string{"backblaze.m.crossplane.io"}, Resources: []string{"*/finalizers"}, Verbs: []string{"update"}},
 		{APIGroups: []string{"", "coordination.k8s.io"}, Resources: []string{"secrets", "configmaps", "events", "leases"}, Verbs: []string{"*"}},
 	}
 
