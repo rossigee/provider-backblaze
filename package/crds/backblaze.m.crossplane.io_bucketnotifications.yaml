@@ -4,7 +4,7 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.21.0
-  name: policies.backblaze.m.crossplane.io
+  name: bucketnotifications.backblaze.m.crossplane.io
 spec:
   group: backblaze.m.crossplane.io
   names:
@@ -12,10 +12,10 @@ spec:
     - crossplane
     - managed
     - backblaze
-    kind: Policy
-    listKind: PolicyList
-    plural: policies
-    singular: policy
+    kind: BucketNotification
+    listKind: BucketNotificationList
+    plural: bucketnotifications
+    singular: bucketnotification
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
@@ -34,7 +34,8 @@ spec:
     name: v1beta1
     schema:
       openAPIV3Schema:
-        description: A Policy represents a Backblaze B2 S3-compatible policy.
+        description: A BucketNotification represents a B2 bucket event notification
+          rule.
         properties:
           apiVersion:
             description: |-
@@ -56,25 +57,52 @@ spec:
           spec:
             properties:
               forProvider:
-                description: PolicyParameters are the configurable fields of a Policy.
+                description: |-
+                  NotificationParameters are the configurable fields of a
+                  BucketNotification (B2 event notification rule).
                 properties:
-                  allowBucket:
+                  bucketId:
                     description: |-
-                      AllowBucket creates a simple policy that allows all operations for the specified bucket.
-                      This is mutually exclusive with RawPolicy.
+                      BucketID is the B2-assigned bucket ID. Set this OR BucketName; if both
+                      are set the bucket is resolved by ID. B2's notification API addresses
+                      buckets by ID, not name.
+                    type: string
+                  bucketName:
+                    description: |-
+                      BucketName is the bucket name; resolved via b2_list_buckets at reconcile
+                      time if BucketID is not provided.
                     type: string
                   description:
-                    description: Description provides a human-readable description
-                      of the policy.
-                    type: string
-                  policyName:
-                    description: PolicyName is the name for this policy.
-                    type: string
-                  rawPolicy:
                     description: |-
-                      RawPolicy contains the complete S3-compatible policy document as JSON.
-                      This is mutually exclusive with AllowBucket.
+                      Description is an optional human-readable note (returned on Get but
+                      primarily cosmetic).
                     type: string
+                  disabled:
+                    description: Disabled suspends delivery without removing the rule.
+                    type: boolean
+                  events:
+                    description: Events is the set of B2 events to subscribe to.
+                    items:
+                      description: |-
+                        NotificationEvent represents a B2 bucket event that the notification rule
+                        subscribes to.
+                      type: string
+                    minItems: 1
+                    type: array
+                  name:
+                    description: |-
+                      Name is the friendly name of the notification rule (must be unique per
+                      bucket).
+                    type: string
+                  webhookUrl:
+                    description: |-
+                      WebhookURL is the HTTPS endpoint delivered to. Must be reachable from
+                      B2's egress.
+                    type: string
+                required:
+                - events
+                - name
+                - webhookUrl
                 type: object
               managementPolicies:
                 default:
@@ -135,24 +163,21 @@ spec:
             - forProvider
             type: object
           status:
-            description: PolicyStatus represents the observed state of a Policy.
             properties:
               atProvider:
-                description: PolicyObservation are the observable fields of a Policy.
+                description: NotificationObservation are the observable fields of
+                  a BucketNotification.
                 properties:
-                  creationTime:
-                    description: CreationTime is when the policy was created.
-                    format: date-time
+                  bucketId:
                     type: string
-                  policyDocument:
-                    description: PolicyDocument is the actual policy document stored.
-                    type: string
-                  policyId:
-                    description: PolicyID is the unique identifier for the policy
-                      (if applicable).
-                    type: string
-                  policyName:
-                    description: PolicyName is the name of the policy.
+                  events:
+                    items:
+                      description: |-
+                        NotificationEvent represents a B2 bucket event that the notification rule
+                        subscribes to.
+                      type: string
+                    type: array
+                  notificationId:
                     type: string
                 type: object
               conditions:

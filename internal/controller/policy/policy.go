@@ -20,10 +20,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
 	xpv1 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"github.com/pkg/errors"
 
@@ -92,7 +94,7 @@ func (r *PolicyReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 
 	logger.Info("Reconciling policy", "policyName", policy.GetPolicyName())
 
-	// Check for deletion - in this simple implementation, we let Kubernetes handle deletion
+	// Check for deletion
 	if !policy.GetDeletionTimestamp().IsZero() {
 		return r.handleDeletion(ctx, policy)
 	}
@@ -102,7 +104,6 @@ func (r *PolicyReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 	if err != nil {
 		logger.Error(err, "Failed to create Backblaze client")
 		r.setCondition(policy, xpv1.TypeReady, "False", "ClientError", err.Error())
-		// Use shorter requeue time for ProviderConfig not found errors (likely cache sync issue)
 		requeueAfter := time.Minute
 		if strings.Contains(err.Error(), "not found") {
 			requeueAfter = 10 * time.Second
@@ -110,27 +111,83 @@ func (r *PolicyReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 		return reconcile.Result{RequeueAfter: requeueAfter}, r.Client.Status().Update(ctx, policy)
 	}
 
-	// Check if policy already exists (Observe)
-	if policy.Status.AtProvider.PolicyName == "" {
-		// Respect managementPolicies - skip create if Observe-only
-		if !shouldCreate(policy.GetManagementPolicies()) {
-			logger.Info("Skipping policy creation due to managementPolicies", "managementPolicies", policy.GetManagementPolicies())
-			r.setCondition(policy, xpv1.TypeReady, "False", "ObserveOnly", "External resource does not exist and creation is disabled by managementPolicies")
-			return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, policy)
-		}
-		// Create policy
-		if err := r.createPolicy(ctx, policy, service); err != nil {
-			logger.Error(err, "Failed to create policy")
-			r.setCondition(policy, xpv1.TypeReady, "False", "CreateError", err.Error())
+	// Validate the spec - exactly one of AllowBucket/RawPolicy must be set
+	if err := validatePolicyParams(policy.Spec.ForProvider); err != nil {
+		r.setCondition(policy, xpv1.TypeReady, "False", "InvalidSpec", err.Error())
+		return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, policy)
+	}
+
+	// Resolve which bucket this policy attaches to. AllowBucket is the explicit
+	// shorthand; otherwise the resource name / Spec.PolicyName is the bucket.
+	bucketName := resolveBucketName(policy)
+	if bucketName == "" {
+		r.setCondition(policy, xpv1.TypeReady, "False", "InvalidSpec", "could not determine target bucket name")
+		return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, policy)
+	}
+
+	// Verify the target bucket exists before we try to attach a policy to it.
+	exists, err := service.BucketExists(ctx, bucketName)
+	if err != nil {
+		logger.Error(err, "Failed to check bucket existence")
+		r.setCondition(policy, xpv1.TypeReady, "False", "CheckError", err.Error())
+		return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, policy)
+	}
+	if !exists {
+		logger.Info("Target bucket does not exist", "bucketName", bucketName)
+		r.setCondition(policy, xpv1.TypeReady, "False", "BucketNotFound",
+			fmt.Sprintf("target bucket %q does not exist in Backblaze B2", bucketName))
+		return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, policy)
+	}
+
+	desiredDoc, err := renderPolicyDocument(policy.Spec.ForProvider)
+	if err != nil {
+		r.setCondition(policy, xpv1.TypeReady, "False", "InvalidSpec", err.Error())
+		return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, policy)
+	}
+
+	// Observe current bucket policy.
+	currentDoc, getErr := service.GetBucketPolicy(ctx, bucketName)
+	hasPolicy := true
+	if getErr != nil {
+		if errors.Is(getErr, clients.ErrBucketPolicyNotFound) {
+			hasPolicy = false
+		} else {
+			logger.Error(getErr, "Failed to read bucket policy")
+			r.setCondition(policy, xpv1.TypeReady, "False", "ObserveError", getErr.Error())
 			return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, policy)
 		}
 	}
 
-	// Policy exists and is ready
-	r.setCondition(policy, xpv1.TypeReady, "True", "Available", "Policy is available")
+	drift := !hasPolicy || !policyDocEqual(currentDoc, desiredDoc)
+	if drift {
+		if !shouldCreate(policy.GetManagementPolicies()) {
+			logger.Info("Bucket policy drift detected but creation is disabled by managementPolicies",
+				"bucketName", bucketName)
+			r.setCondition(policy, xpv1.TypeReady, "False", "ObserveOnly",
+				"Bucket policy drift detected and managementPolicies disallows creation")
+			return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, policy)
+		}
+		if err := service.PutBucketPolicy(ctx, bucketName, desiredDoc); err != nil {
+			logger.Error(err, "Failed to apply bucket policy", "bucketName", bucketName)
+			r.setCondition(policy, xpv1.TypeReady, "False", "ApplyError", err.Error())
+			return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, policy)
+		}
+		logger.Info("Applied bucket policy", "bucketName", bucketName, "created", !hasPolicy)
+	}
+
+	meta.SetExternalName(policy, bucketName)
+	policy.Status.AtProvider.PolicyName = bucketName
+	policy.Status.AtProvider.PolicyDocument = desiredDoc
+	policy.Status.AtProvider.PolicyID = bucketName
+	now := metav1.NewTime(time.Now())
+	if policy.Status.AtProvider.CreationTime == nil {
+		policy.Status.AtProvider.CreationTime = &now
+	}
+
+	r.setCondition(policy, xpv1.TypeReady, "True", "Available", "Bucket policy is applied")
 	r.setCondition(policy, xpv1.TypeSynced, "True", "ReconcileSuccess", "Successfully reconciled")
 
-	logger.Info("Successfully reconciled policy")
+	logger.Info("Successfully reconciled policy", "bucketName", bucketName, "drift", drift)
 	return reconcile.Result{RequeueAfter: 5 * time.Minute}, r.Client.Status().Update(ctx, policy)
 }
 
@@ -144,76 +201,48 @@ func (r *PolicyReconciler) handleDeletion(ctx context.Context, policy *backblaze
 		return reconcile.Result{}, nil
 	}
 
-	// For this implementation, we'll simulate policy deletion
-	// In a real implementation, you would use the Backblaze B2 API
-	// TODO: Implement actual B2 policy deletion
+	bucketName := resolveBucketName(policy)
+	if bucketName == "" {
+		logger.Info("Policy has no resolvable bucket name; nothing to delete externally")
+		return reconcile.Result{}, nil
+	}
 
-	logger.Info("Policy deletion handled")
+	service, err := r.getBackblazeClient(ctx, policy)
+	if err != nil {
+		// ProviderConfig may already be gone; allow Kubernetes GC to proceed.
+		logger.Error(err, "Failed to create Backblaze client for deletion")
+		return reconcile.Result{}, nil
+	}
+
+	if err := service.DeleteBucketPolicy(ctx, bucketName); err != nil {
+		if errors.Is(err, clients.ErrBucketPolicyNotFound) {
+			logger.Info("Bucket policy already absent in B2", "bucketName", bucketName)
+			return reconcile.Result{}, nil
+		}
+		// Don't block Kubernetes deletion - log and continue.
+		logger.Error(err, "Failed to delete bucket policy from B2", "bucketName", bucketName)
+		return reconcile.Result{}, nil
+	}
+
+	logger.Info("Successfully deleted bucket policy", "bucketName", bucketName)
 	return reconcile.Result{}, nil
 }
 
-func (r *PolicyReconciler) createPolicy(ctx context.Context, policy *backblazev1beta1.Policy, service *clients.BackblazeClient) error {
-	// Validate policy parameters
-	params := policy.Spec.ForProvider
-	if (params.AllowBucket != nil && params.RawPolicy != nil) ||
-		(params.AllowBucket == nil && params.RawPolicy == nil) {
-		return errors.New(errInvalidPolicyParams)
-	}
-
-	var policyDocument string
-	var err error
-
-	if params.AllowBucket != nil {
-		// Generate simple policy for the bucket
-		policyDocument, err = r.generateSimplePolicy(*params.AllowBucket)
-		if err != nil {
-			return errors.Wrap(err, errGenerateSimplePolicy)
-		}
-	} else {
-		// Use raw policy document
-		policyDocument = *params.RawPolicy
-		// Validate it's valid JSON
-		var temp interface{}
-		if err := json.Unmarshal([]byte(policyDocument), &temp); err != nil {
-			return errors.Wrap(err, errInvalidRawPolicy)
-		}
-	}
-
-	// Get policy name
-	policyName := policy.GetPolicyName()
-
-	// For this implementation, we'll simulate policy creation
-	// In a real implementation, you would use the Backblaze B2 API
-	// TODO: Implement actual B2 policy creation
-
-	// Update the resource status
-	policy.Status.AtProvider.PolicyName = policyName
-	policy.Status.AtProvider.PolicyDocument = policyDocument
-	policy.Status.AtProvider.PolicyID = fmt.Sprintf("policy-%d", policy.GetGeneration())
-	now := metav1.NewTime(time.Now())
-	policy.Status.AtProvider.CreationTime = &now
-
-	return nil
-}
-
 func (r *PolicyReconciler) getBackblazeClient(ctx context.Context, policy *backblazev1beta1.Policy) (*clients.BackblazeClient, error) {
-	// Determine ProviderConfig name - use "default" if not specified
+	// Crossplane v2 sets a kubebuilder default of {"kind":"ClusterProviderConfig","name":"default"}.
+	// We always honour the referenced name; if it's empty we treat it as "default".
 	providerConfigName := "default"
-	if policy.GetProviderConfigReference() != nil {
-		providerConfigName = policy.GetProviderConfigReference().Name
+	if ref := policy.GetProviderConfigReference(); ref != nil && ref.Name != "" {
+		providerConfigName = ref.Name
 	}
 
 	pc := &apisv1beta1.ProviderConfig{}
 	// ProviderConfigs are namespaced resources - look in the same namespace as the provider
 	key := client.ObjectKey{Name: providerConfigName, Namespace: "crossplane-system"}
 	if err := r.Client.Get(ctx, key, pc); err != nil {
-		// Check if this is a "not found" error that could be due to cache sync timing
 		if client.IgnoreNotFound(err) == nil {
-			// ProviderConfig not found - this could be a cache sync issue
-			// Return a retriable error to allow reconciliation to retry
 			return nil, errors.Wrap(err, errGetProviderConfig)
 		}
-		// Other errors (permission, etc.) - return immediately
 		return nil, errors.Wrap(err, errGetProviderConfig)
 	}
 
@@ -225,8 +254,64 @@ func (r *PolicyReconciler) getBackblazeClient(ctx context.Context, policy *backb
 	return clients.NewBackblazeClient(*cfg)
 }
 
-// generateSimplePolicy creates a basic policy that allows all operations for a specific bucket
-func (r *PolicyReconciler) generateSimplePolicy(bucketName string) (string, error) {
+// resolveBucketName picks the target bucket name for the policy. AllowBucket
+// (the simple-mode shorthand) wins; otherwise we fall back to the explicit
+// Spec.PolicyName or the resource's metadata name.
+func resolveBucketName(p *backblazev1beta1.Policy) string {
+	if p.Spec.ForProvider.AllowBucket != nil && *p.Spec.ForProvider.AllowBucket != "" {
+		return *p.Spec.ForProvider.AllowBucket
+	}
+	return p.GetPolicyName()
+}
+
+// renderPolicyDocument validates the parameters and returns the desired
+// bucket policy JSON document.
+func renderPolicyDocument(params backblazev1beta1.PolicyParameters) (string, error) {
+	switch {
+	case params.AllowBucket != nil && params.RawPolicy != nil,
+		params.AllowBucket == nil && params.RawPolicy == nil:
+		return "", errors.New(errInvalidPolicyParams)
+	case params.AllowBucket != nil:
+		return generateSimplePolicy(*params.AllowBucket)
+	default:
+		doc := *params.RawPolicy
+		var v interface{}
+		if err := json.Unmarshal([]byte(doc), &v); err != nil {
+			return "", errors.Wrap(err, errInvalidRawPolicy)
+		}
+		return doc, nil
+	}
+}
+
+// validatePolicyParams returns an error if the parameters are not usable.
+func validatePolicyParams(params backblazev1beta1.PolicyParameters) error {
+	if (params.AllowBucket != nil && params.RawPolicy != nil) ||
+		(params.AllowBucket == nil && params.RawPolicy == nil) {
+		return errors.New(errInvalidPolicyParams)
+	}
+	return nil
+}
+
+// policyDocEqual compares two policy JSON documents semantically by parsing
+// them into generic structures and comparing with reflect.DeepEqual. This makes
+// the drift check robust against whitespace and key-order differences coming
+// back from the B2 API.
+func policyDocEqual(a, b string) bool {
+	if a == b {
+		return true
+	}
+	var av, bv interface{}
+	if err := json.Unmarshal([]byte(a), &av); err != nil {
+		return false
+	}
+	if err := json.Unmarshal([]byte(b), &bv); err != nil {
+		return false
+	}
+	return reflect.DeepEqual(av, bv)
+}
+
+// generateSimplePolicy creates a basic policy that allows all operations for a specific bucket.
+func generateSimplePolicy(bucketName string) (string, error) {
 	policy := map[string]interface{}{
 		"Version": "2012-10-17",
 		"Statement": []map[string]interface{}{
@@ -247,6 +332,12 @@ func (r *PolicyReconciler) generateSimplePolicy(bucketName string) (string, erro
 	}
 
 	return string(policyBytes), nil
+}
+
+// generateSimplePolicy is also exposed as a method so tests can call it as
+// `r.generateSimplePolicy(...)`.
+func (r *PolicyReconciler) generateSimplePolicy(bucketName string) (string, error) {
+	return generateSimplePolicy(bucketName)
 }
 
 func (r *PolicyReconciler) setCondition(policy *backblazev1beta1.Policy, conditionType xpv1.ConditionType, status, reason, message string) {

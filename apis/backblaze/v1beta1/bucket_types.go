@@ -65,6 +65,33 @@ type CORSRule struct {
 	MaxAgeSeconds *int `json:"maxAgeSeconds,omitempty"`
 }
 
+// ServerSideEncryption describes default encryption-at-rest applied to new
+// files uploaded to the bucket. Backblaze B2 supports SSE-B2 only via
+// `defaultServerSideEncryption: { mode: "SSE-B2", algorithm: "AES256" }`.
+// SSE-C is exposed in the type for completeness but cannot be applied
+// declaratively through b2_update_bucket.
+type ServerSideEncryption struct {
+	// Mode is "SSE-B2" (managed keys) or "SSE-C" (customer keys).
+	// +kubebuilder:validation:Enum=SSE-B2;SSE-C
+	Mode string `json:"mode"`
+	// Algorithm is the encryption algorithm; "AES256" is the only supported
+	// value for both modes.
+	// +kubebuilder:validation:Enum=AES256
+	// +optional
+	Algorithm string `json:"algorithm,omitempty"`
+}
+
+// DefaultRetention describes the B2 file-lock default retention period.
+// When set, every newly-uploaded file is governed by the configured retention
+// automatically. To enable file lock on the bucket, set FileLockEnabled=true.
+type DefaultRetention struct {
+	// Mode is "governance" (overrideable) or "compliance" (not overrideable).
+	// +kubebuilder:validation:Enum=governance;compliance
+	Mode string `json:"mode"`
+	// Period is the retention period in seconds.
+	Period int `json:"period"`
+}
+
 // BucketParameters are the configurable fields of a Bucket.
 type BucketParameters struct {
 	// BucketName is the name of the bucket. Must be globally unique.
@@ -85,6 +112,23 @@ type BucketParameters struct {
 	// CorsRules define CORS configuration for the bucket.
 	// +optional
 	CorsRules []CORSRule `json:"corsRules,omitempty"`
+	// BucketInfo maps free-form key/value metadata onto the bucket. B2 exposes
+	// these via the bucketInfo field of b2_list_buckets. Use for cost-tracking
+	// tags, environment labels, etc.
+	// +optional
+	BucketInfo map[string]string `json:"bucketInfo,omitempty"`
+	// DefaultServerSideEncryption sets the default encryption-at-rest mode for
+	// newly uploaded files. Cannot be unset once configured.
+	// +optional
+	DefaultServerSideEncryption *ServerSideEncryption `json:"defaultServerSideEncryption,omitempty"`
+	// FileLockEnabled turns on B2 file lock for the bucket. Required before
+	// DefaultRetention will be honoured.
+	// +optional
+	FileLockEnabled bool `json:"fileLockEnabled,omitempty"`
+	// DefaultRetention sets the bucket-wide default retention period. Requires
+	// FileLockEnabled=true.
+	// +optional
+	DefaultRetention *DefaultRetention `json:"defaultRetention,omitempty"`
 }
 
 // BucketObservation are the observable fields of a Bucket.
@@ -103,6 +147,10 @@ type BucketObservation struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
 // +kubebuilder:resource:scope=Namespaced,categories={crossplane,managed,backblaze}
+// +kubebuilder:printcolumn:name="READY",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
+// +kubebuilder:printcolumn:name="SYNCED",type="string",JSONPath=".status.conditions[?(@.type=='Synced')].status"
+// +kubebuilder:printcolumn:name="EXTERNAL-NAME",type="string",JSONPath=".metadata.annotations.crossplane\\.io/external-name"
+// +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp"
 // +genclient
 // +genclient:namespaced
 // +groupName=backblaze.m.crossplane.io
@@ -122,8 +170,8 @@ type BucketSpec struct {
 
 // BucketStatus represents the observed state of a Bucket.
 type BucketStatus struct {
-	xpv1.ConditionedStatus `json:",inline"`
-	AtProvider             BucketObservation `json:"atProvider,omitempty"`
+	xpv1.ManagedResourceStatus `json:",inline"`
+	AtProvider                 BucketObservation `json:"atProvider,omitempty"`
 }
 
 // +kubebuilder:object:root=true

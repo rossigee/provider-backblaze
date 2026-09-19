@@ -28,6 +28,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
 	"github.com/pkg/errors"
 
@@ -50,13 +51,12 @@ const (
 	// Default Backblaze B2 regions and their S3-compatible endpoints
 	DefaultRegion         = "us-west-001"
 	DefaultEndpointFormat = "https://s3.%s.backblazeb2.com"
-
-	// Backblaze B2 Native API constants
-	B2AuthorizeAccountURL = "https://api.backblazeb2.com/b2api/v3/b2_authorize_account"
-	B2CreateKeyURL        = "https://api.backblazeb2.com/b2api/v3/b2_create_key"
-	B2DeleteKeyURL        = "https://api.backblazeb2.com/b2api/v3/b2_delete_key"
-	B2ListKeysURL         = "https://api.backblazeb2.com/b2api/v3/b2_list_keys"
 )
+
+// B2AuthorizeAccountURL is the well-known B2 native endpoint for
+// authorizing an account. It is a var (not const) so tests can re-point it
+// at an httptest server.
+var B2AuthorizeAccountURL = "https://api.backblazeb2.com/b2api/v3/b2_authorize_account"
 
 // BackblazeClient represents a client for Backblaze B2 using S3-compatible API and native B2 API
 type BackblazeClient struct {
@@ -205,7 +205,7 @@ func (c *BackblazeClient) BucketExists(ctx context.Context, bucketName string) (
 
 	_, err := c.S3Client.HeadBucket(ctx, input)
 	if err != nil {
-		if isNotFoundError(err) {
+		if isS3NotFound(err) {
 			return false, nil
 		}
 		return false, errors.Wrap(err, "failed to check bucket existence")
@@ -285,11 +285,21 @@ func (c *BackblazeClient) DeleteAllObjectsInBucket(ctx context.Context, bucketNa
 	return nil
 }
 
-// isNotFoundError checks if an error is a "not found" error
-func isNotFoundError(err error) bool {
-	// This is a simplified check - in production, you'd want more robust error checking
-	return err != nil && (err.Error() == "NotFound" ||
-		err.Error() == "NoSuchBucket")
+// isS3NotFound reports whether err is an AWS S3 404-equivalent error carrying
+// the standard NoSuch{Bucket,Key,...} error code. Uses smithy.APIError so
+// wrapped errors (which is what the SDK returns) are matched reliably instead
+// of being compared against err.Error() strings.
+func isS3NotFound(err error) bool {
+	var apiErr smithy.APIError
+	if err == nil || !errors.As(err, &apiErr) {
+		return false
+	}
+	switch apiErr.ErrorCode() {
+	case "NotFound", "NoSuchBucket", "NoSuchKey", "NoSuchBucketPolicy",
+		"NoSuchLifecycleConfiguration", "NoSuchCORSConfiguration":
+		return true
+	}
+	return false
 }
 
 // GetExternalName extracts the external name from a managed resource
@@ -348,6 +358,22 @@ type B2CreateKeyResponse struct {
 	ExpirationTimestamp *int64   `json:"expirationTimestamp,omitempty"`
 	BucketID            string   `json:"bucketId,omitempty"`
 	NamePrefix          string   `json:"namePrefix,omitempty"`
+}
+
+// B2UpdateKeyRequest represents the request to update an application key.
+// b2_update_key allows live edits to capabilities, bucketId, namePrefix and
+// validDurationInSeconds. The application key secret value is never returned
+// after creation, so this does not invalidate secrets in flight.
+type B2UpdateKeyRequest struct {
+	ApplicationKeyID string   `json:"applicationKeyId"`
+	KeyName          string   `json:"keyName,omitempty"`
+	Capabilities     []string `json:"capabilities,omitempty"`
+	BucketID         string   `json:"bucketId,omitempty"`
+	NamePrefix       string   `json:"namePrefix,omitempty"`
+	// ValidDurationInSeconds must be a positive integer less than 86400000
+	// (1000 days), or omitted entirely. To remove an existing expiration, send
+	// 0. b2_update_key rejects other values.
+	ValidDurationInSeconds *int `json:"validDurationInSeconds,omitempty"`
 }
 
 // B2DeleteKeyRequest represents the request to delete an application key
@@ -425,6 +451,74 @@ func (c *BackblazeClient) authorizeAccount(ctx context.Context) error {
 	return nil
 }
 
+// doWithReauth runs an authenticated B2 native request with two layers of
+// resilience on top of the bare http.Client:
+//
+//   - 401 forces a re-authorize, retry once with the freshly-issued token.
+//   - 5xx / connection errors retry up to 3 times with bounded exponential
+//     backoff (~250 ms, 500 ms, 1 s) so transient B2 outages don't bubble up
+//     as reconcile failures.
+//
+// Other status codes (4xx other than 401) are returned to the caller as-is.
+func (c *BackblazeClient) doWithReauth(ctx context.Context, req *http.Request) (*http.Response, error) {
+	const maxAttempts = 3
+	backoff := 250 * time.Millisecond
+	var lastResp *http.Response
+	var lastErr error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		r, err := c.HTTPClient.Do(req.Clone(ctx))
+		if err != nil {
+			lastErr = err
+			if attempt == maxAttempts {
+				return nil, err
+			}
+			if !sleepCtx(ctx, backoff) {
+				return nil, err
+			}
+			backoff *= 2
+			continue
+		}
+		if r.StatusCode == http.StatusUnauthorized && attempt < maxAttempts {
+			_ = r.Body.Close()
+			c.AuthToken = ""
+			c.APIURL = ""
+			c.tokenExpiration = time.Time{}
+			if authErr := c.authorizeAccount(ctx); authErr != nil {
+				return nil, errors.Wrap(authErr, "auth refresh after 401 failed")
+			}
+			req.Header.Set("Authorization", c.AuthToken)
+			continue
+		}
+		if r.StatusCode >= 500 && attempt < maxAttempts {
+			_ = r.Body.Close()
+			if !sleepCtx(ctx, backoff) {
+				return nil, ctx.Err()
+			}
+			backoff *= 2
+			continue
+		}
+		return r, nil
+	}
+	if lastErr != nil {
+		return nil, lastErr
+	}
+	return lastResp, nil
+}
+
+func sleepCtx(ctx context.Context, d time.Duration) bool {
+	if d <= 0 {
+		return ctx.Err() == nil
+	}
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-t.C:
+		return true
+	}
+}
+
 // CreateApplicationKey creates a new application key in Backblaze B2
 func (c *BackblazeClient) CreateApplicationKey(ctx context.Context, keyName string, capabilities []string, bucketID, namePrefix string, validDurationInSeconds *int) (*B2CreateKeyResponse, error) {
 	if err := c.authorizeAccount(ctx); err != nil {
@@ -453,7 +547,7 @@ func (c *BackblazeClient) CreateApplicationKey(ctx context.Context, keyName stri
 	httpReq.Header.Set("Authorization", c.AuthToken)
 	httpReq.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.HTTPClient.Do(httpReq)
+	resp, err := c.doWithReauth(ctx, httpReq)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to execute HTTP request")
 	}
@@ -497,7 +591,7 @@ func (c *BackblazeClient) DeleteApplicationKey(ctx context.Context, applicationK
 	httpReq.Header.Set("Authorization", c.AuthToken)
 	httpReq.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.HTTPClient.Do(httpReq)
+	resp, err := c.doWithReauth(ctx, httpReq)
 	if err != nil {
 		return errors.Wrap(err, "failed to execute HTTP request")
 	}
@@ -538,7 +632,7 @@ func (c *BackblazeClient) GetApplicationKey(ctx context.Context, applicationKeyI
 		httpReq.Header.Set("Authorization", c.AuthToken)
 		httpReq.Header.Set("Content-Type", "application/json")
 
-		resp, err := c.HTTPClient.Do(httpReq)
+		resp, err := c.doWithReauth(ctx, httpReq)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to execute HTTP request")
 		}
@@ -579,10 +673,58 @@ func (c *BackblazeClient) GetApplicationKey(ctx context.Context, applicationKeyI
 		req.StartApplicationKeyID = listResp.NextApplicationKeyID
 	}
 
-	return nil, errors.New("application key not found")
+	return nil, ErrApplicationKeyNotFound
+}
+
+// UpdateApplicationKey edits the live application key via b2_update_key.
+// Only fields that are non-zero are sent; the application's secret value is
+// never touched, so existing connection secrets in the cluster remain valid.
+func (c *BackblazeClient) UpdateApplicationKey(ctx context.Context, req B2UpdateKeyRequest) (*B2CreateKeyResponse, error) {
+	if req.ApplicationKeyID == "" {
+		return nil, errors.New("applicationKeyId is required")
+	}
+	if err := c.authorizeAccount(ctx); err != nil {
+		return nil, errors.Wrap(err, "failed to authorize account")
+	}
+
+	reqBody, err := json.Marshal(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to marshal b2_update_key request")
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.APIURL+"/b2api/v3/b2_update_key", bytes.NewBuffer(reqBody))
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create HTTP request")
+	}
+	httpReq.Header.Set("Authorization", c.AuthToken)
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.doWithReauth(ctx, httpReq)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, errors.Errorf("b2_update_key failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var out B2CreateKeyResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, errors.Wrap(err, "failed to decode b2_update_key response")
+	}
+	return &out, nil
 }
 
 // S3 Bucket Policy Methods
+
+// ErrBucketPolicyNotFound is returned when no bucket policy is configured for the named bucket.
+var ErrBucketPolicyNotFound = errors.New("bucket policy not found")
+
+// ErrApplicationKeyNotFound is returned when no application key with the
+// given ID exists on the account.
+var ErrApplicationKeyNotFound = errors.New("application key not found")
 
 // GetBucketPolicy retrieves the policy for a bucket
 func (c *BackblazeClient) GetBucketPolicy(ctx context.Context, bucketName string) (string, error) {
@@ -592,14 +734,14 @@ func (c *BackblazeClient) GetBucketPolicy(ctx context.Context, bucketName string
 
 	result, err := c.S3Client.GetBucketPolicy(ctx, input)
 	if err != nil {
-		if isNotFoundError(err) || err.Error() == "NoSuchBucketPolicy" {
-			return "", errors.New("bucket policy not found")
+		if isS3NotFound(err) || err.Error() == "NoSuchBucketPolicy" {
+			return "", ErrBucketPolicyNotFound
 		}
 		return "", errors.Wrap(err, "failed to get bucket policy")
 	}
 
 	if result.Policy == nil {
-		return "", errors.New("bucket policy not found")
+		return "", ErrBucketPolicyNotFound
 	}
 
 	return *result.Policy, nil
@@ -628,11 +770,499 @@ func (c *BackblazeClient) DeleteBucketPolicy(ctx context.Context, bucketName str
 
 	_, err := c.S3Client.DeleteBucketPolicy(ctx, input)
 	if err != nil {
-		if isNotFoundError(err) || err.Error() == "NoSuchBucketPolicy" {
-			return errors.New("bucket policy not found")
+		if isS3NotFound(err) || err.Error() == "NoSuchBucketPolicy" {
+			return ErrBucketPolicyNotFound
 		}
 		return errors.Wrap(err, "failed to delete bucket policy")
 	}
 
+	return nil
+}
+
+// Bucket Lifecycle Configuration (Backblaze S3-compatible subset)
+
+// GetBucketLifecycleConfiguration reads the bucket's lifecycle configuration.
+// Returns ErrBucketLifecycleNotFound if no lifecycle rules are configured.
+func (c *BackblazeClient) GetBucketLifecycleConfiguration(ctx context.Context, bucketName string) ([]types.LifecycleRule, error) {
+	input := &s3.GetBucketLifecycleConfigurationInput{
+		Bucket: aws.String(bucketName),
+	}
+
+	result, err := c.S3Client.GetBucketLifecycleConfiguration(ctx, input)
+	if err != nil {
+		if isS3NotFound(err) || err.Error() == "NoSuchLifecycleConfiguration" {
+			return nil, ErrBucketLifecycleNotFound
+		}
+		return nil, errors.Wrap(err, "failed to get bucket lifecycle configuration")
+	}
+	return result.Rules, nil
+}
+
+// PutBucketLifecycleConfiguration replaces the bucket's lifecycle configuration.
+func (c *BackblazeClient) PutBucketLifecycleConfiguration(ctx context.Context, bucketName string, rules []types.LifecycleRule) error {
+	input := &s3.PutBucketLifecycleConfigurationInput{
+		Bucket:                 aws.String(bucketName),
+		LifecycleConfiguration: &types.BucketLifecycleConfiguration{Rules: rules},
+	}
+	if _, err := c.S3Client.PutBucketLifecycleConfiguration(ctx, input); err != nil {
+		return errors.Wrap(err, "failed to put bucket lifecycle configuration")
+	}
+	return nil
+}
+
+// DeleteBucketLifecycleConfiguration removes all lifecycle rules from the bucket.
+func (c *BackblazeClient) DeleteBucketLifecycleConfiguration(ctx context.Context, bucketName string) error {
+	input := &s3.DeleteBucketLifecycleInput{
+		Bucket: aws.String(bucketName),
+	}
+	if _, err := c.S3Client.DeleteBucketLifecycle(ctx, input); err != nil {
+		if isS3NotFound(err) || err.Error() == "NoSuchLifecycleConfiguration" {
+			return ErrBucketLifecycleNotFound
+		}
+		return errors.Wrap(err, "failed to delete bucket lifecycle configuration")
+	}
+	return nil
+}
+
+// ErrBucketLifecycleNotFound is returned when no lifecycle configuration exists for the bucket.
+var ErrBucketLifecycleNotFound = errors.New("bucket lifecycle configuration not found")
+
+// Bucket CORS Configuration (Backblaze S3-compatible)
+
+// GetBucketCors reads the bucket's CORS configuration. Returns ErrBucketCorsNotFound
+// if no CORS rules are configured.
+func (c *BackblazeClient) GetBucketCors(ctx context.Context, bucketName string) ([]types.CORSRule, error) {
+	input := &s3.GetBucketCorsInput{
+		Bucket: aws.String(bucketName),
+	}
+	result, err := c.S3Client.GetBucketCors(ctx, input)
+	if err != nil {
+		if isS3NotFound(err) || err.Error() == "NoSuchCORSConfiguration" {
+			return nil, ErrBucketCorsNotFound
+		}
+		return nil, errors.Wrap(err, "failed to get bucket cors configuration")
+	}
+	return result.CORSRules, nil
+}
+
+// PutBucketCors replaces the bucket's CORS configuration.
+func (c *BackblazeClient) PutBucketCors(ctx context.Context, bucketName string, rules []types.CORSRule) error {
+	input := &s3.PutBucketCorsInput{
+		Bucket:            aws.String(bucketName),
+		CORSConfiguration: &types.CORSConfiguration{CORSRules: rules},
+	}
+	if _, err := c.S3Client.PutBucketCors(ctx, input); err != nil {
+		return errors.Wrap(err, "failed to put bucket cors configuration")
+	}
+	return nil
+}
+
+// DeleteBucketCors removes the CORS configuration from the bucket.
+func (c *BackblazeClient) DeleteBucketCors(ctx context.Context, bucketName string) error {
+	input := &s3.DeleteBucketCorsInput{
+		Bucket: aws.String(bucketName),
+	}
+	if _, err := c.S3Client.DeleteBucketCors(ctx, input); err != nil {
+		if isS3NotFound(err) || err.Error() == "NoSuchCORSConfiguration" {
+			return ErrBucketCorsNotFound
+		}
+		return errors.Wrap(err, "failed to delete bucket cors configuration")
+	}
+	return nil
+}
+
+// ErrBucketCorsNotFound is returned when no CORS configuration exists for the bucket.
+var ErrBucketCorsNotFound = errors.New("bucket cors configuration not found")
+
+// B2 native bucket management (used for BucketType and bucket metadata)
+
+// B2UpdateBucketRequest represents the request to update an existing bucket.
+// Only fields that should be changed need to be set.
+type B2UpdateBucketRequest struct {
+	AccountID                   string                  `json:"accountId"`
+	BucketID                    string                  `json:"bucketId"`
+	BucketType                  string                  `json:"bucketType,omitempty"`
+	BucketInfo                  *B2BucketInfo           `json:"bucketInfo,omitempty"`
+	LifecycleRules              []B2NativeLifecycleRule `json:"lifecycleRules,omitempty"`
+	CORSRules                   []B2NativeCORSRule      `json:"corsRules,omitempty"`
+	DefaultRetention            *B2FileLockRetention    `json:"defaultRetention,omitempty"`
+	DefaultServerSideEncryption *B2NativeSSESettings    `json:"defaultServerSideEncryption,omitempty"`
+	FileLockEnabled             *bool                   `json:"fileLockEnabled,omitempty"`
+}
+
+// B2BucketInfo is a map of bucket-level metadata returned by B2.
+type B2BucketInfo map[string]string
+
+// B2NativeLifecycleRule is the JSON shape B2 expects for lifecycle rules.
+type B2NativeLifecycleRule struct {
+	FileNamePrefix            string `json:"fileNamePrefix,omitempty"`
+	DaysFromUploadingToHiding *int   `json:"daysFromUploadingToHiding,omitempty"`
+	DaysFromHidingToDeleting  *int   `json:"daysFromHidingToDeleting,omitempty"`
+}
+
+// B2NativeCORSRule is the JSON shape B2 expects for CORS rules.
+type B2NativeCORSRule struct {
+	CorsRuleName   string   `json:"corsRuleName"`
+	AllowedOrigins []string `json:"allowedOrigins"`
+	AllowedHeaders []string `json:"allowedHeaders,omitempty"`
+	AllowedMethods []string `json:"allowedMethods"`
+	ExposeHeaders  []string `json:"exposeHeaders,omitempty"`
+	MaxAgeSeconds  *int     `json:"maxAgeSeconds,omitempty"`
+}
+
+// B2FileLockRetention corresponds to b2 file lock retention settings.
+type B2FileLockRetention struct {
+	Mode   string `json:"mode"`
+	Period int    `json:"period"`
+}
+
+// B2NativeSSESettings is the B2 server-side encryption default.
+type B2NativeSSESettings struct {
+	Mode      string `json:"mode"`      // "SSE-B2" or "SSE-C"
+	Algorithm string `json:"algorithm"` // "AES256"
+}
+
+// B2UpdateBucketRequest represents the request to update an existing bucket.
+// Only fields that should be changed need to be set.
+
+// B2UpdateBucketResponse is the response shape for b2_update_bucket.
+type B2UpdateBucketResponse struct {
+	AccountID                   string                  `json:"accountId"`
+	BucketID                    string                  `json:"bucketId"`
+	BucketName                  string                  `json:"bucketName"`
+	BucketType                  string                  `json:"bucketType"`
+	BucketInfo                  B2BucketInfo            `json:"bucketInfo"`
+	LifecycleRules              []B2NativeLifecycleRule `json:"lifecycleRules"`
+	CORSRules                   []B2NativeCORSRule      `json:"corsRules"`
+	DefaultRetention            *B2FileLockRetention    `json:"defaultRetention,omitempty"`
+	DefaultServerSideEncryption *B2NativeSSESettings    `json:"defaultServerSideEncryption,omitempty"`
+	FileLockEnabled             *bool                   `json:"fileLockEnabled,omitempty"`
+}
+
+// B2ListBucketsResponse is the shape returned by b2_list_buckets.
+type B2ListBucketsResponse struct {
+	Buckets []struct {
+		AccountID                   string                  `json:"accountId"`
+		BucketID                    string                  `json:"bucketId"`
+		BucketName                  string                  `json:"bucketName"`
+		BucketType                  string                  `json:"bucketType"`
+		BucketInfo                  B2BucketInfo            `json:"bucketInfo"`
+		LifecycleRules              []B2NativeLifecycleRule `json:"lifecycleRules"`
+		CORSRules                   []B2NativeCORSRule      `json:"corsRules"`
+		DefaultRetention            *B2FileLockRetention    `json:"defaultRetention,omitempty"`
+		DefaultServerSideEncryption *B2NativeSSESettings    `json:"defaultServerSideEncryption,omitempty"`
+		FileLockEnabled             *bool                   `json:"fileLockEnabled,omitempty"`
+	} `json:"buckets"`
+}
+
+// B2UpdateBucket updates an existing bucket. Currently used to set BucketType
+// (e.g. to flip a private bucket to allPublic) which cannot be done at
+// create time via the S3-compatible API.
+func (c *BackblazeClient) B2UpdateBucket(ctx context.Context, req B2UpdateBucketRequest) (*B2UpdateBucketResponse, error) {
+	if err := c.authorizeAccount(ctx); err != nil {
+		return nil, errors.Wrap(err, "failed to authorize account")
+	}
+
+	reqBody, err := json.Marshal(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to marshal b2_update_bucket request")
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.APIURL+"/b2api/v3/b2_update_bucket", bytes.NewBuffer(reqBody))
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create HTTP request")
+	}
+	httpReq.Header.Set("Authorization", c.AuthToken)
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.doWithReauth(ctx, httpReq)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to execute HTTP request")
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, errors.Errorf("b2_update_bucket failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var out B2UpdateBucketResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, errors.Wrap(err, "failed to decode b2_update_bucket response")
+	}
+	return &out, nil
+}
+
+// B2ListBuckets calls b2_list_buckets and returns the native B2 bucket view
+// (incl. ID, type, lifecycle, CORS). Used for observation/drift detection
+// where the S3 path doesn't give us enough info.
+func (c *BackblazeClient) B2ListBuckets(ctx context.Context) (*B2ListBucketsResponse, error) {
+	if err := c.authorizeAccount(ctx); err != nil {
+		return nil, errors.Wrap(err, "failed to authorize account")
+	}
+
+	reqBody, err := json.Marshal(struct {
+		AccountID string `json:"accountId"`
+	}{AccountID: c.AccountID})
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to marshal b2_list_buckets request")
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.APIURL+"/b2api/v3/b2_list_buckets", bytes.NewBuffer(reqBody))
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create HTTP request")
+	}
+	httpReq.Header.Set("Authorization", c.AuthToken)
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.doWithReauth(ctx, httpReq)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to execute HTTP request")
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, errors.Errorf("b2_list_buckets failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var out B2ListBucketsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, errors.Wrap(err, "failed to decode b2_list_buckets response")
+	}
+	return &out, nil
+}
+
+// B2CreateBucketRequest is the request body for b2_create_bucket.
+type B2CreateBucketRequest struct {
+	AccountID  string        `json:"accountId"`
+	BucketName string        `json:"bucketName"`
+	BucketType string        `json:"bucketType"`
+	BucketInfo *B2BucketInfo `json:"bucketInfo,omitempty"`
+}
+
+// B2CreateBucketResponse is the response body for b2_create_bucket. Includes
+// the canonical BucketID we need to make subsequent updates.
+type B2CreateBucketResponse struct {
+	AccountID  string       `json:"accountId"`
+	BucketID   string       `json:"bucketId"`
+	BucketName string       `json:"bucketName"`
+	BucketType string       `json:"bucketType"`
+	BucketInfo B2BucketInfo `json:"bucketInfo"`
+}
+
+// B2CreateBucket creates a bucket via the native API (so we get the
+// BucketID back, unlike the S3_CreateBucket form).
+func (c *BackblazeClient) B2CreateBucket(ctx context.Context, req B2CreateBucketRequest) (*B2CreateBucketResponse, error) {
+	if err := c.authorizeAccount(ctx); err != nil {
+		return nil, errors.Wrap(err, "failed to authorize account")
+	}
+
+	reqBody, err := json.Marshal(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to marshal b2_create_bucket request")
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.APIURL+"/b2api/v3/b2_create_bucket", bytes.NewBuffer(reqBody))
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create HTTP request")
+	}
+	httpReq.Header.Set("Authorization", c.AuthToken)
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.doWithReauth(ctx, httpReq)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to execute HTTP request")
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, errors.Errorf("b2_create_bucket failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var out B2CreateBucketResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, errors.Wrap(err, "failed to decode b2_create_bucket response")
+	}
+	return &out, nil
+}
+
+// Bucket event notification methods (b2_create / list / delete event notification).
+
+// B2EventNotification is the B2 notification rule representation.
+type B2EventNotification struct {
+	AccountID      string   `json:"accountId"`
+	BucketID       string   `json:"bucketId"`
+	NotificationID string   `json:"notificationId,omitempty"`
+	Name           string   `json:"name"`
+	Events         []string `json:"events"`
+	WebhookURL     string   `json:"webhookUrl"`
+	Description    string   `json:"description,omitempty"`
+	Disabled       bool     `json:"disabled,omitempty"`
+}
+
+// B2CreateEventNotificationRequest is the request body for
+// b2_create_event_notification.
+type B2CreateEventNotificationRequest struct {
+	AccountID   string   `json:"accountId"`
+	BucketID    string   `json:"bucketId"`
+	Name        string   `json:"name"`
+	Events      []string `json:"events"`
+	WebhookURL  string   `json:"webhookUrl"`
+	Description string   `json:"description,omitempty"`
+	Disabled    bool     `json:"disabled,omitempty"`
+}
+
+// B2ListEventNotificationsRequest is the request body for
+// b2_list_event_notifications.
+type B2ListEventNotificationsRequest struct {
+	AccountID string `json:"accountId"`
+	BucketID  string `json:"bucketId"`
+}
+
+// B2ListEventNotificationsResponse is the response body.
+type B2ListEventNotificationsResponse struct {
+	Notifications []B2EventNotification `json:"notifications"`
+}
+
+// B2DeleteEventNotificationRequest is the request body for
+// b2_delete_event_notification.
+type B2DeleteEventNotificationRequest struct {
+	AccountID      string `json:"accountId"`
+	BucketID       string `json:"bucketId"`
+	NotificationID string `json:"notificationId"`
+}
+
+// B2UpdateEventNotificationRequest is the request body for
+// b2_update_event_notification. Mutates an existing rule in place.
+type B2UpdateEventNotificationRequest struct {
+	AccountID      string   `json:"accountId"`
+	BucketID       string   `json:"bucketId"`
+	NotificationID string   `json:"notificationId"`
+	Name           string   `json:"name"`
+	Events         []string `json:"events"`
+	WebhookURL     string   `json:"webhookUrl"`
+	Description    string   `json:"description,omitempty"`
+	Disabled       bool     `json:"disabled,omitempty"`
+}
+
+func (c *BackblazeClient) B2CreateEventNotification(ctx context.Context, req B2CreateEventNotificationRequest) (*B2EventNotification, error) {
+	if err := c.authorizeAccount(ctx); err != nil {
+		return nil, errors.Wrap(err, "failed to authorize account")
+	}
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to marshal b2_create_event_notification request")
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.APIURL+"/b2api/v3/b2_create_event_notification", bytes.NewBuffer(body))
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create HTTP request")
+	}
+	httpReq.Header.Set("Authorization", c.AuthToken)
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.doWithReauth(ctx, httpReq)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, errors.Errorf("b2_create_event_notification failed: %d %s", resp.StatusCode, string(respBody))
+	}
+	var out B2EventNotification
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, errors.Wrap(err, "failed to decode b2_create_event_notification response")
+	}
+	return &out, nil
+}
+
+func (c *BackblazeClient) B2ListEventNotifications(ctx context.Context, req B2ListEventNotificationsRequest) (*B2ListEventNotificationsResponse, error) {
+	if err := c.authorizeAccount(ctx); err != nil {
+		return nil, errors.Wrap(err, "failed to authorize account")
+	}
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to marshal b2_list_event_notifications request")
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.APIURL+"/b2api/v3/b2_list_event_notifications", bytes.NewBuffer(body))
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create HTTP request")
+	}
+	httpReq.Header.Set("Authorization", c.AuthToken)
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.doWithReauth(ctx, httpReq)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, errors.Errorf("b2_list_event_notifications failed: %d %s", resp.StatusCode, string(respBody))
+	}
+	var out B2ListEventNotificationsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, errors.Wrap(err, "failed to decode b2_list_event_notifications response")
+	}
+	return &out, nil
+}
+
+func (c *BackblazeClient) B2UpdateEventNotification(ctx context.Context, req B2UpdateEventNotificationRequest) (*B2EventNotification, error) {
+	if err := c.authorizeAccount(ctx); err != nil {
+		return nil, errors.Wrap(err, "failed to authorize account")
+	}
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to marshal b2_update_event_notification request")
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.APIURL+"/b2api/v3/b2_update_event_notification", bytes.NewBuffer(body))
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create HTTP request")
+	}
+	httpReq.Header.Set("Authorization", c.AuthToken)
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.doWithReauth(ctx, httpReq)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, errors.Errorf("b2_update_event_notification failed: %d %s", resp.StatusCode, string(respBody))
+	}
+	var out B2EventNotification
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, errors.Wrap(err, "failed to decode b2_update_event_notification response")
+	}
+	return &out, nil
+}
+
+func (c *BackblazeClient) B2DeleteEventNotification(ctx context.Context, req B2DeleteEventNotificationRequest) error {
+	if err := c.authorizeAccount(ctx); err != nil {
+		return errors.Wrap(err, "failed to authorize account")
+	}
+	body, err := json.Marshal(req)
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal b2_delete_event_notification request")
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.APIURL+"/b2api/v3/b2_delete_event_notification", bytes.NewBuffer(body))
+	if err != nil {
+		return errors.Wrap(err, "failed to create HTTP request")
+	}
+	httpReq.Header.Set("Authorization", c.AuthToken)
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.doWithReauth(ctx, httpReq)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return errors.Errorf("b2_delete_event_notification failed: %d %s", resp.StatusCode, string(respBody))
+	}
 	return nil
 }

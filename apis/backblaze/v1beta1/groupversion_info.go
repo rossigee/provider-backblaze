@@ -40,6 +40,8 @@ func addKnownTypes(s *runtime.Scheme) error {
 	s.AddKnownTypes(SchemeGroupVersion,
 		&Bucket{},
 		&BucketList{},
+		&BucketNotification{},
+		&BucketNotificationList{},
 		&Policy{},
 		&PolicyList{},
 		&User{},

@@ -56,6 +56,10 @@ type PolicyObservation struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
 // +kubebuilder:resource:scope=Namespaced,categories={crossplane,managed,backblaze}
+// +kubebuilder:printcolumn:name="READY",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
+// +kubebuilder:printcolumn:name="SYNCED",type="string",JSONPath=".status.conditions[?(@.type=='Synced')].status"
+// +kubebuilder:printcolumn:name="EXTERNAL-NAME",type="string",JSONPath=".metadata.annotations.crossplane\\.io/external-name"
+// +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp"
 // +genclient
 // +genclient:namespaced
 // +groupName=backblaze.m.crossplane.io
@@ -75,8 +79,8 @@ type PolicySpec struct {
 
 // PolicyStatus represents the observed state of a Policy.
 type PolicyStatus struct {
-	xpv1.ConditionedStatus `json:",inline"`
-	AtProvider             PolicyObservation `json:"atProvider,omitempty"`
+	xpv1.ManagedResourceStatus `json:",inline"`
+	AtProvider                 PolicyObservation `json:"atProvider,omitempty"`
 }
 
 // +kubebuilder:object:root=true
