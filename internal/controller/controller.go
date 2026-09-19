@@ -29,6 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/rossigee/provider-backblaze/internal/controller/bucket"
+	"github.com/rossigee/provider-backblaze/internal/controller/notification"
 	"github.com/rossigee/provider-backblaze/internal/controller/policy"
 	"github.com/rossigee/provider-backblaze/internal/controller/providerconfig"
 	"github.com/rossigee/provider-backblaze/internal/controller/user"
@@ -52,6 +53,9 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 	if err := policy.SetupPolicy(mgr, o); err != nil {
 		return err
 	}
+	if err := notification.SetupNotification(mgr, o); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -59,7 +63,7 @@ func setupRBAC(c client.Client, l logging.Logger) error {
 	ctx := context.Background()
 
 	rules := []rbacv1.PolicyRule{
-		{APIGroups: []string{"backblaze.m.crossplane.io"}, Resources: []string{"buckets", "buckets/status", "policies", "policies/status", "providerconfigs", "providerconfigs/status", "providerconfigusages", "providerconfigusages/status", "users", "users/status"}, Verbs: []string{"get", "list", "watch", "update", "patch", "create"}},
+		{APIGroups: []string{"backblaze.m.crossplane.io"}, Resources: []string{"buckets", "buckets/status", "bucketnotifications", "bucketnotifications/status", "policies", "policies/status", "providerconfigs", "providerconfigs/status", "providerconfigusages", "providerconfigusages/status", "users", "users/status"}, Verbs: []string{"get", "list", "watch", "update", "patch", "create"}},
 		{APIGroups: []string{"backblaze.m.crossplane.io"}, Resources: []string{"*/finalizers"}, Verbs: []string{"update"}},
 		{APIGroups: []string{"", "coordination.k8s.io"}, Resources: []string{"secrets", "configmaps", "events", "leases"}, Verbs: []string{"*"}},
 	}

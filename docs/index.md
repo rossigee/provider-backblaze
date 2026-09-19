@@ -12,17 +12,16 @@ A Crossplane v2 provider for managing Backblaze B2 storage resources. All resour
 
 | Resource | API Group | Description |
 |----------|-----------|-------------|
-| [Bucket](resources/bucket.md) | `backblaze.m.crossplane.io/v1beta1` | B2 bucket management |
-| [User](resources/user.md) | `backblaze.m.crossplane.io/v1beta1` | Application key management |
-| [Policy](resources/policy.md) | `backblaze.m.crossplane.io/v1beta1` | S3-compatible policy documents (status-only) |
+| [Bucket](resources/bucket.md) | `backblaze.m.crossplane.io/v1beta1` | B2 bucket management (type, lifecycle, CORS, tags, SSE, file lock) |
+| [User](resources/user.md) | `backblaze.m.crossplane.io/v1beta1` | Application key management with live updates |
+| [Policy](resources/policy.md) | `backblaze.m.crossplane.io/v1beta1` | S3-compatible bucket policies, applied to B2 |
+| [BucketNotification](resources/notification.md) | `backblaze.m.crossplane.io/v1beta1` | B2 event notification rules (webhooks) |
 | ProviderConfig | `backblaze.m.crossplane.io/v1beta1` | Provider credentials and region |
 
 ## API Coverage Gaps
 
 B2 capabilities not yet exposed by this provider:
 
-- **Bucket updates**: `lifecycleRules` and `corsRules` are accepted in spec but never applied; spec changes after creation are ignored (no update path).
-- **Bucket deletion**: `bucketDeletionPolicy: DeleteAll` is accepted but objects are not emptied before `DeleteBucket`; buckets must already be empty.
-- **Key restrictions**: `User` `bucketId`/`namePrefix` are accepted but not passed to `b2_create_key`; keys are created unrestricted.
-- **Policy enforcement**: `Policy` is validated and recorded in status only; B2 has no bucket-policy API and nothing is applied externally.
-- **Missing resources**: file/large-file management, bucket versioning/SSE/ObjectLock settings, and cross-account replication are not modeled.
+- **File management**: individual file/large-file upload, download, hide, and delete are intentionally out of scope for this provider.
+- **Cross-account replication**: B2 Cloud Replication rules are not modeled.
+- **SSE-C**: customer-key encryption settings are accepted in the type but cannot be applied declaratively through `b2_update_bucket`; `SSE-B2` is fully supported.

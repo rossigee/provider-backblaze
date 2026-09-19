@@ -18,7 +18,20 @@ spec:
     singular: bucket
   scope: Namespaced
   versions:
-  - name: v1beta1
+  - additionalPrinterColumns:
+    - jsonPath: .status.conditions[?(@.type=='Ready')].status
+      name: READY
+      type: string
+    - jsonPath: .status.conditions[?(@.type=='Synced')].status
+      name: SYNCED
+      type: string
+    - jsonPath: .metadata.annotations.crossplane\.io/external-name
+      name: EXTERNAL-NAME
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1beta1
     schema:
       openAPIV3Schema:
         description: A Bucket is a managed resource representing a Backblaze B2 bucket.
@@ -52,6 +65,14 @@ spec:
                     - DeleteIfEmpty
                     - DeleteAll
                     type: string
+                  bucketInfo:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      BucketInfo maps free-form key/value metadata onto the bucket. B2 exposes
+                      these via the bucketInfo field of b2_list_buckets. Use for cost-tracking
+                      tags, environment labels, etc.
+                    type: object
                   bucketName:
                     description: BucketName is the name of the bucket. Must be globally
                       unique.
@@ -104,6 +125,52 @@ spec:
                       - corsRuleName
                       type: object
                     type: array
+                  defaultRetention:
+                    description: |-
+                      DefaultRetention sets the bucket-wide default retention period. Requires
+                      FileLockEnabled=true.
+                    properties:
+                      mode:
+                        description: Mode is "governance" (overrideable) or "compliance"
+                          (not overrideable).
+                        enum:
+                        - governance
+                        - compliance
+                        type: string
+                      period:
+                        description: Period is the retention period in seconds.
+                        type: integer
+                    required:
+                    - mode
+                    - period
+                    type: object
+                  defaultServerSideEncryption:
+                    description: |-
+                      DefaultServerSideEncryption sets the default encryption-at-rest mode for
+                      newly uploaded files. Cannot be unset once configured.
+                    properties:
+                      algorithm:
+                        description: |-
+                          Algorithm is the encryption algorithm; "AES256" is the only supported
+                          value for both modes.
+                        enum:
+                        - AES256
+                        type: string
+                      mode:
+                        description: Mode is "SSE-B2" (managed keys) or "SSE-C" (customer
+                          keys).
+                        enum:
+                        - SSE-B2
+                        - SSE-C
+                        type: string
+                    required:
+                    - mode
+                    type: object
+                  fileLockEnabled:
+                    description: |-
+                      FileLockEnabled turns on B2 file lock for the bucket. Required before
+                      DefaultRetention will be honoured.
+                    type: boolean
                   lifecycleRules:
                     description: LifecycleRules define automatic file lifecycle management.
                     items:
@@ -255,6 +322,20 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              lastHandledReconcileAt:
+                description: |-
+                  LastHandledReconcileAt holds the value of the most recent
+                  reconcile-requested-at annotation token that the controller has
+                  processed. Users can compare this to the annotation to determine
+                  whether a reconcile request has been handled.
+                type: string
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the latest metadata.generation
+                  which resulted in either a ready state, or stalled due to error
+                  it can not recover from without human intervention.
+                format: int64
+                type: integer
             type: object
         required:
         - spec
