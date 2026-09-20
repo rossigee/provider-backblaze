@@ -943,7 +943,14 @@ func bucketB2Server(t *testing.T, buckets []any) *httptest.Server {
 		switch r.URL.Path {
 		case "/b2api/v3/b2_authorize_account":
 			_ = json.NewEncoder(w).Encode(clients.B2AuthorizeAccountResponse{
-				AccountID: "acc-1", AuthorizationToken: "tok", APIURL: srv.URL, DownloadURL: srv.URL + "/file",
+				AccountID:          "acc-1",
+				AuthorizationToken: "tok",
+				APIInfo: clients.B2APIInfo{
+					StorageAPI: clients.B2StorageAPI{
+						APIURL:      srv.URL,
+						DownloadURL: srv.URL + "/file",
+					},
+				},
 			})
 		case "/b2api/v3/b2_list_buckets":
 			_ = json.NewEncoder(w).Encode(map[string]any{"buckets": buckets})
@@ -1058,7 +1065,14 @@ func bucketNativeUpdateServer(t *testing.T, calls *int32) (*httptest.Server, *cl
 		switch r.URL.Path {
 		case "/b2api/v3/b2_authorize_account":
 			_ = json.NewEncoder(w).Encode(clients.B2AuthorizeAccountResponse{
-				AccountID: "acc-1", AuthorizationToken: "tok", APIURL: srv.URL, DownloadURL: srv.URL + "/file",
+				AccountID:          "acc-1",
+				AuthorizationToken: "tok",
+				APIInfo: clients.B2APIInfo{
+					StorageAPI: clients.B2StorageAPI{
+						APIURL:      srv.URL,
+						DownloadURL: srv.URL + "/file",
+					},
+				},
 			})
 		case "/b2api/v3/b2_update_bucket":
 			atomic.AddInt32(calls, 1)

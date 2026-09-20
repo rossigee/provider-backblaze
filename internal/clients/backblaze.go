@@ -71,6 +71,7 @@ type BackblazeClient struct {
 	AuthToken        string
 	APIURL           string
 	DownloadURL      string
+	S3APIURL         string
 	AccountID        string
 	tokenExpiration  time.Time
 }
@@ -82,7 +83,10 @@ type Config struct {
 	Region           string
 }
 
-// NewBackblazeClient creates a new Backblaze B2 client using S3-compatible API
+// NewBackblazeClient creates a new Backblaze B2 client using S3-compatible API.
+// It calls b2_authorize_account first to obtain the real S3 endpoint (s3ApiUrl) and
+// native API endpoint (apiUrl) from B2, so the S3 client uses the correct per-account
+// endpoint rather than a guessed regional address.
 func NewBackblazeClient(cfg Config) (*BackblazeClient, error) {
 	if cfg.ApplicationKeyID == "" || cfg.ApplicationKey == "" {
 		return nil, errors.New("applicationKeyId and applicationKey are required")
@@ -92,8 +96,22 @@ func NewBackblazeClient(cfg Config) (*BackblazeClient, error) {
 		cfg.Region = DefaultRegion
 	}
 
-	endpoint := fmt.Sprintf(DefaultEndpointFormat, cfg.Region)
+	// Create the HTTP client for the native B2 API
+	httpClient := &http.Client{Timeout: 30 * time.Second}
 
+	// Authorize immediately so we get the real s3ApiUrl and apiUrl from B2.
+	// This also populates AuthToken, APIURL, DownloadURL, S3APIURL, AccountID.
+	client := &BackblazeClient{
+		Region:           cfg.Region,
+		HTTPClient:       httpClient,
+		ApplicationKeyID: cfg.ApplicationKeyID,
+		ApplicationKey:   cfg.ApplicationKey,
+	}
+	if err := client.authorizeAccount(context.Background()); err != nil {
+		return nil, errors.Wrap(err, "b2_authorize_account failed")
+	}
+
+	// Build the S3 client targeting the actual s3ApiUrl returned by B2.
 	awsCfg, err := config.LoadDefaultConfig(context.Background(),
 		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
 			cfg.ApplicationKeyID,
@@ -106,19 +124,20 @@ func NewBackblazeClient(cfg Config) (*BackblazeClient, error) {
 		return nil, errors.Wrap(err, "failed to load AWS config")
 	}
 
+	s3Endpoint := client.S3APIURL
+	if s3Endpoint == "" {
+		s3Endpoint = fmt.Sprintf(DefaultEndpointFormat, cfg.Region)
+	}
+
 	s3Client := s3.NewFromConfig(awsCfg, func(o *s3.Options) {
-		o.BaseEndpoint = aws.String(endpoint)
+		o.BaseEndpoint = aws.String(s3Endpoint)
 		o.UsePathStyle = true // Required for Backblaze B2
 	})
 
-	return &BackblazeClient{
-		S3Client:         s3Client,
-		Region:           cfg.Region,
-		Endpoint:         endpoint,
-		HTTPClient:       &http.Client{Timeout: 30 * time.Second},
-		ApplicationKeyID: cfg.ApplicationKeyID,
-		ApplicationKey:   cfg.ApplicationKey,
-	}, nil
+	client.S3Client = s3Client
+	client.Endpoint = s3Endpoint
+
+	return client, nil
 }
 
 // GetProviderConfig extracts Backblaze configuration from a ProviderConfig
@@ -330,12 +349,24 @@ type B2AuthorizeAccountRequest struct {
 	ApplicationKey string `json:"applicationKey"`
 }
 
-// B2AuthorizeAccountResponse represents the response from authorize account
+// B2AuthorizeAccountResponse represents the response from authorize account.
+// B2 returns a nested structure: { accountId, authorizationToken, apiInfo: { storageApi: { apiUrl, downloadUrl, s3ApiUrl, ... } } }
 type B2AuthorizeAccountResponse struct {
-	AccountID          string `json:"accountId"`
-	AuthorizationToken string `json:"authorizationToken"`
-	APIURL             string `json:"apiUrl"`
-	DownloadURL        string `json:"downloadUrl"`
+	AccountID          string    `json:"accountId"`
+	AuthorizationToken string    `json:"authorizationToken"`
+	APIInfo            B2APIInfo `json:"apiInfo"`
+}
+
+// B2APIInfo is the apiInfo section of the authorize response
+type B2APIInfo struct {
+	StorageAPI B2StorageAPI `json:"storageApi"`
+}
+
+// B2StorageAPI contains the actual API endpoints
+type B2StorageAPI struct {
+	APIURL      string `json:"apiUrl"`
+	DownloadURL string `json:"downloadUrl"`
+	S3APIURL    string `json:"s3ApiUrl"`
 }
 
 // B2CreateKeyRequest represents the request to create an application key
@@ -442,8 +473,9 @@ func (c *BackblazeClient) authorizeAccount(ctx context.Context) error {
 	}
 
 	c.AuthToken = authResp.AuthorizationToken
-	c.APIURL = authResp.APIURL
-	c.DownloadURL = authResp.DownloadURL
+	c.APIURL = authResp.APIInfo.StorageAPI.APIURL
+	c.DownloadURL = authResp.APIInfo.StorageAPI.DownloadURL
+	c.S3APIURL = authResp.APIInfo.StorageAPI.S3APIURL
 	c.AccountID = authResp.AccountID
 	// B2 tokens typically last 24 hours, but we'll refresh after 12 hours to be safe
 	c.tokenExpiration = time.Now().Add(12 * time.Hour)

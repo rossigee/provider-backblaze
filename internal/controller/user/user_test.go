@@ -326,7 +326,14 @@ func TestUserReconcile_CreatePath(t *testing.T) {
 		switch r.URL.Path {
 		case "/b2api/v3/b2_authorize_account":
 			_ = json.NewEncoder(w).Encode(clients.B2AuthorizeAccountResponse{
-				AccountID: "acc-1", AuthorizationToken: "tok", APIURL: srv.URL, DownloadURL: srv.URL + "/file",
+				AccountID:          "acc-1",
+				AuthorizationToken: "tok",
+				APIInfo: clients.B2APIInfo{
+					StorageAPI: clients.B2StorageAPI{
+						APIURL:      srv.URL,
+						DownloadURL: srv.URL + "/file",
+					},
+				},
 			})
 		case "/b2api/v3/b2_list_keys":
 			_ = json.NewEncoder(w).Encode(clients.B2ListKeysResponse{})
@@ -453,7 +460,14 @@ func TestApplyKeyUpdate_Drift(t *testing.T) {
 		switch r.URL.Path {
 		case "/b2api/v3/b2_authorize_account":
 			_ = json.NewEncoder(w).Encode(clients.B2AuthorizeAccountResponse{
-				AccountID: "acc-1", AuthorizationToken: "tok", APIURL: srv.URL, DownloadURL: srv.URL + "/file",
+				AccountID:          "acc-1",
+				AuthorizationToken: "tok",
+				APIInfo: clients.B2APIInfo{
+					StorageAPI: clients.B2StorageAPI{
+						APIURL:      srv.URL,
+						DownloadURL: srv.URL + "/file",
+					},
+				},
 			})
 		case "/b2api/v3/b2_update_key":
 			_ = json.NewDecoder(r.Body).Decode(&gotReq)
