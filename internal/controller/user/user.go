@@ -22,11 +22,11 @@ import (
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/event"
 	xpv1 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -55,7 +55,7 @@ const (
 func SetupUser(mgr ctrl.Manager, o controller.Options) error {
 	r := &UserReconciler{
 		Client:   mgr.GetClient(),
-		Recorder: mgr.GetEventRecorder("user-controller"),
+		Recorder: event.NewAPIRecorder(mgr.GetEventRecorder("user-controller")),
 	}
 
 	// Explicitly wait for ProviderConfig informer to sync before starting reconciliation
@@ -76,7 +76,7 @@ func SetupUser(mgr ctrl.Manager, o controller.Options) error {
 // UserReconciler reconciles a User object
 type UserReconciler struct {
 	Client   client.Client
-	Recorder events.EventRecorder
+	Recorder event.Recorder
 }
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
@@ -115,7 +115,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req reconcile.Request) (
 			requeueAfter = 10 * time.Second
 		}
 		if r.Recorder != nil {
-			r.Recorder.Eventf(user, nil, corev1.EventTypeWarning, "ClientError", "GetBackblazeClient", err.Error())
+			r.Recorder.Event(user, event.Warning("ClientError", errors.New(err.Error())))
 		}
 		return reconcile.Result{RequeueAfter: requeueAfter}, r.Client.Status().Update(ctx, user)
 	}
@@ -142,7 +142,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req reconcile.Request) (
 			logger.Error(getErr, "Failed to observe application key")
 			r.setCondition(user, xpv1.TypeReady, "False", "ObserveError", getErr.Error())
 			if r.Recorder != nil {
-				r.Recorder.Eventf(user, nil, corev1.EventTypeWarning, "ObserveError", "GetApplicationKey", getErr.Error())
+				r.Recorder.Event(user, event.Warning("ObserveError", errors.New(getErr.Error())))
 			}
 			return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, user)
 		}
@@ -158,7 +158,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req reconcile.Request) (
 			logger.Error(err, "Failed to create application key")
 			r.setCondition(user, xpv1.TypeReady, "False", "CreateError", err.Error())
 			if r.Recorder != nil {
-				r.Recorder.Eventf(user, nil, corev1.EventTypeWarning, "CreateError", "CreateApplicationKey", err.Error())
+				r.Recorder.Event(user, event.Warning("CreateError", errors.New(err.Error())))
 			}
 			return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, user)
 		}
@@ -168,7 +168,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req reconcile.Request) (
 			logger.Error(err, "Failed to apply key update")
 			r.setCondition(user, xpv1.TypeReady, "False", "UpdateError", err.Error())
 			if r.Recorder != nil {
-				r.Recorder.Eventf(user, nil, corev1.EventTypeWarning, "UpdateError", "UpdateApplicationKey", err.Error())
+				r.Recorder.Event(user, event.Warning("UpdateError", errors.New(err.Error())))
 			}
 			return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, user)
 		}
@@ -180,7 +180,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req reconcile.Request) (
 				logger.Error(err, "Failed to reconcile connection secret")
 				r.setCondition(user, xpv1.TypeReady, "False", "SecretError", err.Error())
 				if r.Recorder != nil {
-					r.Recorder.Eventf(user, nil, corev1.EventTypeWarning, "SecretError", "EnsureConnectionSecret", err.Error())
+					r.Recorder.Event(user, event.Warning("SecretError", errors.New(err.Error())))
 				}
 				return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, user)
 			}
@@ -233,7 +233,7 @@ func (r *UserReconciler) handleDeletion(ctx context.Context, user *backblazev1be
 				} else {
 					logger.Error(err, "Failed to delete application key from B2")
 					if r.Recorder != nil {
-						r.Recorder.Eventf(user, nil, corev1.EventTypeWarning, "DeleteError", "DeleteApplicationKey", err.Error())
+						r.Recorder.Event(user, event.Warning("DeleteError", errors.New(err.Error())))
 					}
 				}
 			} else {
