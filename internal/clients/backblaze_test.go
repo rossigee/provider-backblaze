@@ -73,6 +73,26 @@ func TestNewBackblazeClient(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(B2AuthorizeAccountResponse{
+					AccountID:          "test-account",
+					AuthorizationToken: "test-token",
+					APIInfo: B2APIInfo{
+						StorageAPI: B2StorageAPI{
+							APIURL:      "https://api.backblazeb2.com",
+							DownloadURL: "https://f.backblazeb2.com",
+							S3APIURL:    "https://s3.us-west-001.backblazeb2.com",
+						},
+					},
+				})
+			}))
+			defer srv.Close()
+
+			prev := B2AuthorizeAccountURL
+			B2AuthorizeAccountURL = srv.URL + "/b2api/v3/b2_authorize_account"
+			defer func() { B2AuthorizeAccountURL = prev }()
+
 			client, err := NewBackblazeClient(tt.config)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewBackblazeClient() error = %v, wantErr %v", err, tt.wantErr)
@@ -87,30 +107,49 @@ func TestNewBackblazeClient(t *testing.T) {
 
 func TestEndpointGeneration(t *testing.T) {
 	tests := []struct {
-		name   string
-		region string
-		want   string
+		name      string
+		region    string
+		wantS3URL string
 	}{
 		{
-			name:   "us-west-001",
-			region: "us-west-001",
-			want:   "https://s3.us-west-001.backblazeb2.com",
+			name:      "us-west-001",
+			region:    "us-west-001",
+			wantS3URL: "https://s3.us-west-001.backblazeb2.com",
 		},
 		{
-			name:   "eu-central-003",
-			region: "eu-central-003",
-			want:   "https://s3.eu-central-003.backblazeb2.com",
+			name:      "eu-central-003",
+			region:    "eu-central-003",
+			wantS3URL: "https://s3.eu-central-003.backblazeb2.com",
 		},
 		{
-			name:   "empty region defaults",
-			region: "",
-			want:   "https://s3.us-west-001.backblazeb2.com", // Default region
+			name:      "empty region defaults",
+			region:    "",
+			wantS3URL: "https://s3.us-west-001.backblazeb2.com",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Test endpoint generation through client creation
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(B2AuthorizeAccountResponse{
+					AccountID:          "test-account",
+					AuthorizationToken: "test-token",
+					APIInfo: B2APIInfo{
+						StorageAPI: B2StorageAPI{
+							APIURL:      "https://api.backblazeb2.com",
+							DownloadURL: "https://f.backblazeb2.com",
+							S3APIURL:    tt.wantS3URL,
+						},
+					},
+				})
+			}))
+			defer srv.Close()
+
+			prev := B2AuthorizeAccountURL
+			B2AuthorizeAccountURL = srv.URL + "/b2api/v3/b2_authorize_account"
+			defer func() { B2AuthorizeAccountURL = prev }()
+
 			config := Config{
 				ApplicationKeyID: "test-key-id",
 				ApplicationKey:   "test-key",
@@ -122,14 +161,34 @@ func TestEndpointGeneration(t *testing.T) {
 				t.Fatalf("NewBackblazeClient() failed: %v", err)
 			}
 
-			if client.Endpoint != tt.want {
-				t.Errorf("Client endpoint = %v, want %v", client.Endpoint, tt.want)
+			if client.Endpoint != tt.wantS3URL {
+				t.Errorf("Client endpoint = %v, want %v", client.Endpoint, tt.wantS3URL)
 			}
 		})
 	}
 }
 
 func TestClientConfiguration(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(B2AuthorizeAccountResponse{
+			AccountID:          "test-account",
+			AuthorizationToken: "test-token",
+			APIInfo: B2APIInfo{
+				StorageAPI: B2StorageAPI{
+					APIURL:      "https://api.backblazeb2.com",
+					DownloadURL: "https://f.backblazeb2.com",
+					S3APIURL:    "https://s3.us-west-001.backblazeb2.com",
+				},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	prev := B2AuthorizeAccountURL
+	B2AuthorizeAccountURL = srv.URL + "/b2api/v3/b2_authorize_account"
+	defer func() { B2AuthorizeAccountURL = prev }()
+
 	config := Config{
 		ApplicationKeyID: "test-key-id",
 		ApplicationKey:   "test-key",
@@ -211,6 +270,26 @@ func TestNewBackblazeClientValidation(t *testing.T) {
 }
 
 func TestConfigDefaults(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(B2AuthorizeAccountResponse{
+			AccountID:          "test-account",
+			AuthorizationToken: "test-token",
+			APIInfo: B2APIInfo{
+				StorageAPI: B2StorageAPI{
+					APIURL:      "https://api.backblazeb2.com",
+					DownloadURL: "https://f.backblazeb2.com",
+					S3APIURL:    "https://s3.us-west-001.backblazeb2.com",
+				},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	prev := B2AuthorizeAccountURL
+	B2AuthorizeAccountURL = srv.URL + "/b2api/v3/b2_authorize_account"
+	defer func() { B2AuthorizeAccountURL = prev }()
+
 	config := Config{
 		ApplicationKeyID: "test-key-id",
 		ApplicationKey:   "test-key",
@@ -256,6 +335,26 @@ func TestConfigDefaults(t *testing.T) {
 
 // Mock tests for bucket operations (these would normally require mocking AWS SDK)
 func TestBucketOperationInterfaces(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(B2AuthorizeAccountResponse{
+			AccountID:          "test-account",
+			AuthorizationToken: "test-token",
+			APIInfo: B2APIInfo{
+				StorageAPI: B2StorageAPI{
+					APIURL:      "https://api.backblazeb2.com",
+					DownloadURL: "https://f.backblazeb2.com",
+					S3APIURL:    "https://s3.us-west-001.backblazeb2.com",
+				},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	prev := B2AuthorizeAccountURL
+	B2AuthorizeAccountURL = srv.URL + "/b2api/v3/b2_authorize_account"
+	defer func() { B2AuthorizeAccountURL = prev }()
+
 	// Test that all methods are available and have correct signatures
 	config := Config{
 		ApplicationKeyID: "test-key-id",
@@ -303,25 +402,17 @@ func TestGetProviderConfig(t *testing.T) {
 
 func newTestClient(t *testing.T, serverURL string) *BackblazeClient {
 	t.Helper()
-	c, err := NewBackblazeClient(Config{
+	// Create client struct directly to avoid calling authorizeAccount (which makes HTTP).
+	// Tests that need to verify authorize behavior should use a mock server.
+	c := &BackblazeClient{
+		HTTPClient:       &http.Client{Timeout: 5 * time.Second},
 		ApplicationKeyID: "test-key-id",
 		ApplicationKey:   "test-key",
-		Region:           "us-west-001",
-	})
-	if err != nil {
-		t.Fatalf("NewBackblazeClient: %v", err)
+		AuthToken:        "fake-pre-existing-token",
+		AccountID:        "fake-account-id",
+		APIURL:           serverURL,
+		DownloadURL:      serverURL + "/file",
 	}
-	// Re-target at the httptest server and skip the metadata lookup.
-	c.HTTPClient = &http.Client{Timeout: 5 * time.Second}
-	c.ApplicationKeyID = "test-key-id"
-	c.ApplicationKey = "test-key"
-	c.APIURL = serverURL
-	c.AuthToken = "fake-pre-existing-token"
-	c.AccountID = "fake-account-id"
-	c.DownloadURL = serverURL + "/file"
-	// Point the auth endpoint at our mock server for the lifetime of the
-	// test. We restore via t.Cleanup so nested failures don't poison later
-	// tests.
 	prev := B2AuthorizeAccountURL
 	B2AuthorizeAccountURL = serverURL + "/b2api/v3/b2_authorize_account"
 	t.Cleanup(func() { B2AuthorizeAccountURL = prev })
@@ -345,8 +436,12 @@ func TestAuthorizeAccount_PopulatesFields(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(B2AuthorizeAccountResponse{
 			AccountID:          "acc-1",
 			AuthorizationToken: "auth-tok",
-			APIURL:             "https://api.example/b2api",
-			DownloadURL:        "https://f.example",
+			APIInfo: B2APIInfo{
+				StorageAPI: B2StorageAPI{
+					APIURL:      "https://api.example/b2api",
+					DownloadURL: "https://f.example",
+				},
+			},
 		})
 	}))
 	defer srv.Close()
@@ -406,8 +501,12 @@ func TestDoWithReauth_ReauthorisesOn401(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(B2AuthorizeAccountResponse{
 				AccountID:          "acc-2",
 				AuthorizationToken: "fresh-token",
-				APIURL:             url,
-				DownloadURL:        url + "/file",
+				APIInfo: B2APIInfo{
+					StorageAPI: B2StorageAPI{
+						APIURL:      url,
+						DownloadURL: url + "/file",
+					},
+				},
 			})
 		default:
 			http.Error(w, "unexpected request: "+r.URL.Path, http.StatusInternalServerError)
@@ -518,8 +617,12 @@ func TestUpdateApplicationKey_RequestBody(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(B2AuthorizeAccountResponse{
 				AccountID:          "acc-1",
 				AuthorizationToken: "auth-tok",
-				APIURL:             srv.URL,
-				DownloadURL:        srv.URL + "/file",
+				APIInfo: B2APIInfo{
+					StorageAPI: B2StorageAPI{
+						APIURL:      srv.URL,
+						DownloadURL: srv.URL + "/file",
+					},
+				},
 			})
 		default:
 			if err := json.NewDecoder(r.Body).Decode(&gotReq); err != nil {
@@ -617,7 +720,14 @@ func TestCreateApplicationKey_RoundTrip(t *testing.T) {
 		switch r.URL.Path {
 		case "/b2api/v3/b2_authorize_account":
 			_ = json.NewEncoder(w).Encode(B2AuthorizeAccountResponse{
-				AccountID: "acc-1", AuthorizationToken: "tok", APIURL: srv.URL, DownloadURL: srv.URL + "/file",
+				AccountID:          "acc-1",
+				AuthorizationToken: "tok",
+				APIInfo: B2APIInfo{
+					StorageAPI: B2StorageAPI{
+						APIURL:      srv.URL,
+						DownloadURL: srv.URL + "/file",
+					},
+				},
 			})
 		case "/b2api/v3/b2_create_key":
 			var req B2CreateKeyRequest
@@ -654,7 +764,14 @@ func TestDeleteApplicationKey_Ok(t *testing.T) {
 		switch r.URL.Path {
 		case "/b2api/v3/b2_authorize_account":
 			_ = json.NewEncoder(w).Encode(B2AuthorizeAccountResponse{
-				AccountID: "acc-1", AuthorizationToken: "tok", APIURL: srv.URL, DownloadURL: srv.URL + "/file",
+				AccountID:          "acc-1",
+				AuthorizationToken: "tok",
+				APIInfo: B2APIInfo{
+					StorageAPI: B2StorageAPI{
+						APIURL:      srv.URL,
+						DownloadURL: srv.URL + "/file",
+					},
+				},
 			})
 		case "/b2api/v3/b2_delete_key":
 			var req B2DeleteKeyRequest
@@ -682,7 +799,14 @@ func TestGetApplicationKey_FoundAndNotFound(t *testing.T) {
 		switch r.URL.Path {
 		case "/b2api/v3/b2_authorize_account":
 			_ = json.NewEncoder(w).Encode(B2AuthorizeAccountResponse{
-				AccountID: "acc-1", AuthorizationToken: "tok", APIURL: srv.URL, DownloadURL: srv.URL + "/file",
+				AccountID:          "acc-1",
+				AuthorizationToken: "tok",
+				APIInfo: B2APIInfo{
+					StorageAPI: B2StorageAPI{
+						APIURL:      srv.URL,
+						DownloadURL: srv.URL + "/file",
+					},
+				},
 			})
 		case "/b2api/v3/b2_list_keys":
 			_ = json.NewEncoder(w).Encode(B2ListKeysResponse{Keys: []struct {
@@ -719,7 +843,14 @@ func TestB2CreateBucket_RoundTrip(t *testing.T) {
 		switch r.URL.Path {
 		case "/b2api/v3/b2_authorize_account":
 			_ = json.NewEncoder(w).Encode(B2AuthorizeAccountResponse{
-				AccountID: "acc-1", AuthorizationToken: "tok", APIURL: srv.URL, DownloadURL: srv.URL + "/file",
+				AccountID:          "acc-1",
+				AuthorizationToken: "tok",
+				APIInfo: B2APIInfo{
+					StorageAPI: B2StorageAPI{
+						APIURL:      srv.URL,
+						DownloadURL: srv.URL + "/file",
+					},
+				},
 			})
 		case "/b2api/v3/b2_create_bucket":
 			var req B2CreateBucketRequest
@@ -754,7 +885,14 @@ func TestB2UpdateBucket_RoundTrip(t *testing.T) {
 		switch r.URL.Path {
 		case "/b2api/v3/b2_authorize_account":
 			_ = json.NewEncoder(w).Encode(B2AuthorizeAccountResponse{
-				AccountID: "acc-1", AuthorizationToken: "tok", APIURL: srv.URL, DownloadURL: srv.URL + "/file",
+				AccountID:          "acc-1",
+				AuthorizationToken: "tok",
+				APIInfo: B2APIInfo{
+					StorageAPI: B2StorageAPI{
+						APIURL:      srv.URL,
+						DownloadURL: srv.URL + "/file",
+					},
+				},
 			})
 		case "/b2api/v3/b2_update_bucket":
 			var req B2UpdateBucketRequest
@@ -789,7 +927,14 @@ func TestB2ListBuckets_RoundTrip(t *testing.T) {
 		switch r.URL.Path {
 		case "/b2api/v3/b2_authorize_account":
 			_ = json.NewEncoder(w).Encode(B2AuthorizeAccountResponse{
-				AccountID: "acc-1", AuthorizationToken: "tok", APIURL: srv.URL, DownloadURL: srv.URL + "/file",
+				AccountID:          "acc-1",
+				AuthorizationToken: "tok",
+				APIInfo: B2APIInfo{
+					StorageAPI: B2StorageAPI{
+						APIURL:      srv.URL,
+						DownloadURL: srv.URL + "/file",
+					},
+				},
 			})
 		case "/b2api/v3/b2_list_buckets":
 			_, _ = w.Write([]byte(`{"buckets":[{"accountId":"acc-1","bucketId":"b1","bucketName":"my-bucket","bucketType":"allPrivate"}]}`))
@@ -815,7 +960,14 @@ func TestB2EventNotifications_CRUD(t *testing.T) {
 		switch r.URL.Path {
 		case "/b2api/v3/b2_authorize_account":
 			_ = json.NewEncoder(w).Encode(B2AuthorizeAccountResponse{
-				AccountID: "acc-1", AuthorizationToken: "tok", APIURL: srv.URL, DownloadURL: srv.URL + "/file",
+				AccountID:          "acc-1",
+				AuthorizationToken: "tok",
+				APIInfo: B2APIInfo{
+					StorageAPI: B2StorageAPI{
+						APIURL:      srv.URL,
+						DownloadURL: srv.URL + "/file",
+					},
+				},
 			})
 		case "/b2api/v3/b2_create_event_notification":
 			_ = json.NewEncoder(w).Encode(B2EventNotification{
