@@ -163,8 +163,12 @@ func b2ListBucketsServer(t *testing.T, buckets []struct {
 			_ = json.NewEncoder(w).Encode(clients.B2AuthorizeAccountResponse{
 				AccountID:          "acc-1",
 				AuthorizationToken: "tok",
-				APIURL:             srv.URL,
-				DownloadURL:        srv.URL + "/file",
+				APIInfo: clients.B2APIInfo{
+					StorageAPI: clients.B2StorageAPI{
+						APIURL:      srv.URL,
+						DownloadURL: srv.URL + "/file",
+					},
+				},
 			})
 		case "/b2api/v3/b2_list_buckets":
 			type row struct {
@@ -272,7 +276,14 @@ func TestNotificationReconcile_CreatePath(t *testing.T) {
 		switch r.URL.Path {
 		case "/b2api/v3/b2_authorize_account":
 			_ = json.NewEncoder(w).Encode(clients.B2AuthorizeAccountResponse{
-				AccountID: "acc-1", AuthorizationToken: "tok", APIURL: srv.URL, DownloadURL: srv.URL + "/file",
+				AccountID:          "acc-1",
+				AuthorizationToken: "tok",
+				APIInfo: clients.B2APIInfo{
+					StorageAPI: clients.B2StorageAPI{
+						APIURL:      srv.URL,
+						DownloadURL: srv.URL + "/file",
+					},
+				},
 			})
 		case "/b2api/v3/b2_list_buckets":
 			_ = json.NewEncoder(w).Encode(map[string]any{"buckets": []any{
@@ -361,7 +372,14 @@ func TestNotificationReconcile_ObserveOnlySkipsCreate(t *testing.T) {
 		switch r.URL.Path {
 		case "/b2api/v3/b2_authorize_account":
 			_ = json.NewEncoder(w).Encode(clients.B2AuthorizeAccountResponse{
-				AccountID: "acc-1", AuthorizationToken: "tok", APIURL: srv.URL, DownloadURL: srv.URL + "/file",
+				AccountID:          "acc-1",
+				AuthorizationToken: "tok",
+				APIInfo: clients.B2APIInfo{
+					StorageAPI: clients.B2StorageAPI{
+						APIURL:      srv.URL,
+						DownloadURL: srv.URL + "/file",
+					},
+				},
 			})
 		case "/b2api/v3/b2_list_buckets":
 			_ = json.NewEncoder(w).Encode(map[string]any{"buckets": []any{
@@ -462,7 +480,14 @@ func TestNotificationReconcile_UpdateDrift(t *testing.T) {
 		switch r.URL.Path {
 		case "/b2api/v3/b2_authorize_account":
 			_ = json.NewEncoder(w).Encode(clients.B2AuthorizeAccountResponse{
-				AccountID: "acc-1", AuthorizationToken: "tok", APIURL: srv.URL, DownloadURL: srv.URL + "/file",
+				AccountID:          "acc-1",
+				AuthorizationToken: "tok",
+				APIInfo: clients.B2APIInfo{
+					StorageAPI: clients.B2StorageAPI{
+						APIURL:      srv.URL,
+						DownloadURL: srv.URL + "/file",
+					},
+				},
 			})
 		case "/b2api/v3/b2_list_buckets":
 			_ = json.NewEncoder(w).Encode(map[string]any{"buckets": []any{
