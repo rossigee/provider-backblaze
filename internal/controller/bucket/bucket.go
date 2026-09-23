@@ -26,12 +26,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/event"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
 	xpv1 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -62,7 +62,7 @@ const (
 func SetupBucket(mgr ctrl.Manager, o controller.Options) error {
 	r := &BucketReconciler{
 		Client:   mgr.GetClient(),
-		Recorder: mgr.GetEventRecorder("bucket-controller"),
+		Recorder: event.NewAPIRecorder(mgr.GetEventRecorder("bucket-controller")),
 	}
 
 	// Explicitly wait for ProviderConfig informer to sync before starting reconciliation
@@ -83,7 +83,7 @@ func SetupBucket(mgr ctrl.Manager, o controller.Options) error {
 // BucketReconciler reconciles a Bucket object
 type BucketReconciler struct {
 	Client   client.Client
-	Recorder events.EventRecorder
+	Recorder event.Recorder
 }
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
@@ -436,7 +436,7 @@ func (r *BucketReconciler) emitWarning(bucket *backblazev1beta1.Bucket, reason s
 	if r.Recorder == nil || err == nil {
 		return
 	}
-	r.Recorder.Eventf(bucket, nil, corev1.EventTypeWarning, reason, "Reconcile", err.Error())
+	r.Recorder.Event(bucket, event.Warning(event.Reason(reason), err))
 }
 
 func (r *BucketReconciler) getBackblazeClient(ctx context.Context, bucket *backblazev1beta1.Bucket) (*clients.BackblazeClient, error) {
