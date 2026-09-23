@@ -22,12 +22,12 @@ import (
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/event"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
 	xpv1 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -53,7 +53,7 @@ const (
 func SetupNotification(mgr ctrl.Manager, o controller.Options) error {
 	r := &NotificationReconciler{
 		Client:   mgr.GetClient(),
-		Recorder: mgr.GetEventRecorder("notification-controller"),
+		Recorder: event.NewAPIRecorder(mgr.GetEventRecorder("notification-controller")),
 	}
 	cache := mgr.GetCache()
 	if _, err := cache.GetInformer(context.Background(), &apisv1beta1.ProviderConfig{}); err != nil {
@@ -68,7 +68,7 @@ func SetupNotification(mgr ctrl.Manager, o controller.Options) error {
 
 type NotificationReconciler struct {
 	Client   client.Client
-	Recorder events.EventRecorder
+	Recorder event.Recorder
 }
 
 func (r *NotificationReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
@@ -316,7 +316,7 @@ func (r *NotificationReconciler) emit(n *backblazev1beta1.BucketNotification, re
 	if r.Recorder == nil || err == nil {
 		return
 	}
-	r.Recorder.Eventf(n, nil, corev1.EventTypeWarning, reason, "Reconcile", err.Error())
+	r.Recorder.Event(n, event.Warning(event.Reason(reason), err))
 }
 
 func cacheRequeue(err error) time.Duration {
