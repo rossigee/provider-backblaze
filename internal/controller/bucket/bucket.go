@@ -204,7 +204,7 @@ func (r *BucketReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 		} else {
 			logger.Info("Updating bucket type", "bucketName", bucketName, "from", current.BucketType, "to", bucketType)
 			if _, err := service.B2UpdateBucket(ctx, clients.B2UpdateBucketRequest{
-				AccountID:  current.AccountID,
+				AccountID:  service.AccountID,
 				BucketID:   current.BucketID,
 				BucketType: bucketType,
 			}); err != nil {

@@ -54,7 +54,7 @@ xpkg.release.publish.ghcr.io/rossigee.provider-backblaze:
 xpkg.build.provider-backblaze: do.build.images
 
 # Setup Package Metadata
-CROSSPLANE_VERSION = 2.0.2
+CROSSPLANE_VERSION = 2.5.0
 -include build/makelib/local.xpkg.mk
 -include build/makelib/controlplane.mk
 

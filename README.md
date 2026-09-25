@@ -15,7 +15,7 @@ All resources are **namespaced** (`backblaze.m.crossplane.io/v1beta1`) for Cross
 
 ## Container Registry
 
-- **Primary**: `ghcr.io/rossigee/provider-backblaze:v0.19.0`
+- **Primary**: `ghcr.io/rossigee/provider-backblaze:v0.19.2`
 
 ## Features
 
@@ -40,7 +40,7 @@ kind: Provider
 metadata:
   name: provider-backblaze
 spec:
-  package: ghcr.io/rossigee/provider-backblaze:v0.19.0
+  package: ghcr.io/rossigee/provider-backblaze:v0.19.2
 EOF
 ```
 

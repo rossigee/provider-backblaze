@@ -15,7 +15,7 @@ This guide covers development setup, building, testing, and contributing to the 
 
 ### Prerequisites
 
-- Go 1.25.3+
+- Go 1.27.1+
 - Docker
 - Kind or another Kubernetes cluster
 - Kubectl
@@ -421,8 +421,8 @@ make integration-test  # Requires B2 credentials
 ### 4. Tag Release
 
 ```bash
-git tag v0.5.1
-git push origin v0.5.1
+git tag v0.19.2
+git push origin v0.19.2
 ```
 
 ### 5. Build and Push Images

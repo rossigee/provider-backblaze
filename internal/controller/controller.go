@@ -66,6 +66,7 @@ func setupRBAC(c client.Client, l logging.Logger) error {
 		{APIGroups: []string{"backblaze.m.crossplane.io"}, Resources: []string{"buckets", "buckets/status", "bucketnotifications", "bucketnotifications/status", "policies", "policies/status", "providerconfigs", "providerconfigs/status", "providerconfigusages", "providerconfigusages/status", "users", "users/status"}, Verbs: []string{"get", "list", "watch", "update", "patch", "create"}},
 		{APIGroups: []string{"backblaze.m.crossplane.io"}, Resources: []string{"*/finalizers"}, Verbs: []string{"update"}},
 		{APIGroups: []string{"", "coordination.k8s.io"}, Resources: []string{"secrets", "configmaps", "events", "leases"}, Verbs: []string{"*"}},
+		{APIGroups: []string{"events.k8s.io"}, Resources: []string{"events"}, Verbs: []string{"create", "patch", "update"}},
 	}
 
 	system := &rbacv1.ClusterRole{

@@ -6,7 +6,7 @@ We welcome contributions to the Backblaze provider for Crossplane! This document
 
 ### Prerequisites
 
-- Go 1.25.3 or later
+- Go 1.27.1 or later
 - Docker
 - Kubernetes cluster (kind, minikube, or similar for testing)
 - kubectl configured to access your cluster
@@ -250,8 +250,8 @@ We follow semantic versioning (semver):
 1. Update version in relevant files
 2. Update CHANGELOG.md
 3. Create release branch
-4. Tag release: `git tag v0.5.1`
-5. Push tag: `git push origin v0.5.1`
+4. Tag release: `git tag v0.19.2`
+5. Push tag: `git push origin v0.19.2`
 6. GitHub Actions will build and publish
 
 ## Getting Help

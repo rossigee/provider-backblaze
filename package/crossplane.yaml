@@ -32,6 +32,8 @@ metadata:
       For filing bugs, suggesting improvements, or requesting new features, please
       open an [issue](https://github.com/rossigee/provider-backblaze/issues).
 spec:
+  crossplane:
+    version: ">=v2.5.0"
   permissionRequests:
   - apiGroups:
     - backblaze.m.crossplane.io
