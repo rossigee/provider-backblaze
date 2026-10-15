@@ -15,7 +15,7 @@ This guide covers development setup, building, testing, and contributing to the 
 
 ### Prerequisites
 
-- Go 1.27.1+
+- Go 1.27.2+
 - Docker
 - Kind or another Kubernetes cluster
 - Kubectl

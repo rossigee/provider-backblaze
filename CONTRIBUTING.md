@@ -6,7 +6,8 @@ We welcome contributions to the Backblaze provider for Crossplane! This document
 
 ### Prerequisites
 
-- Go 1.27.1 or later
+- Go 1.27.2 or later
+- golangci-lint 2.14.0 or later
 - Docker
 - Kubernetes cluster (kind, minikube, or similar for testing)
 - kubectl configured to access your cluster
