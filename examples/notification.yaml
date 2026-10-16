@@ -1,0 +1,34 @@
+apiVersion: backblaze.m.crossplane.io/v1beta1
+kind: BucketNotification
+metadata:
+  name: my-bucket-events
+  namespace: default
+spec:
+  forProvider:
+    # Bucket to watch. Set bucketId (preferred, stable) OR bucketName
+    # (resolved via b2_list_buckets at reconcile time).
+    bucketName: my-unique-bucket-name-12345
+    # bucketId: "bucket-id-from-backblaze"
+
+    # Rule name, unique per bucket.
+    name: "uploads-hook"
+
+    # Events to subscribe to.
+    # Available events:
+    # - b2:ObjectCreated, b2:ObjectDeleted
+    # - b2:ObjectHidden, b2:ObjectNotHidden
+    events:
+      - "b2:ObjectCreated"
+      - "b2:ObjectDeleted"
+
+    # HTTPS endpoint B2 delivers events to.
+    webhookUrl: "https://example.com/b2-events"
+
+    # Optional: human-readable note.
+    # description: "Notify on uploads and deletes"
+
+    # Optional: suspend delivery without removing the rule.
+    # disabled: false
+
+  providerConfigRef:
+    name: default

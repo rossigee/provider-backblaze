@@ -32,5 +32,37 @@ metadata:
       For filing bugs, suggesting improvements, or requesting new features, please
       open an [issue](https://github.com/rossigee/provider-backblaze/issues).
 spec:
+  crossplane:
+    version: ">=v2.5.0"
+  permissionRequests:
+  - apiGroups:
+    - backblaze.m.crossplane.io
+    resources:
+    - buckets
+    - buckets/status
+    - users
+    - users/status
+    - policies
+    - policies/status
+    - providerconfigs
+    - providerconfigs/status
+    - providerconfigusages
+    - providerconfigusages/status
+    verbs:
+    - "*"
+  - apiGroups:
+    - events.k8s.io
+    resources:
+    - events
+    verbs:
+    - "*"
+  - apiGroups:
+    - ""
+    resources:
+    - secrets
+    verbs:
+    - get
+    - list
+    - watch
   controller:
     image: ghcr.io/rossigee/provider-backblaze:{{VERSION}}

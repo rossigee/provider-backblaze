@@ -15,7 +15,7 @@ This guide covers development setup, building, testing, and contributing to the 
 
 ### Prerequisites
 
-- Go 1.25.3+
+- Go 1.27.2+
 - Docker
 - Kind or another Kubernetes cluster
 - Kubectl
@@ -112,13 +112,14 @@ The package will be at `_output/xpkg/`
 2. **Create Backblaze credentials secret**
    ```bash
    kubectl create secret generic backblaze-creds \
-     --from-literal=credentials='{"applicationKeyId":"K005xxxxxxxxxxxxx","applicationKey":"xxxxxxxxxxxxxxxxxx","region":"us-west-001"}' \
+     --from-literal=applicationKeyId="K005xxxxxxxxxxxxx" \
+     --from-literal=applicationKey="xxxxxxxxxxxxxxxxxx" \
      -n crossplane-system
    ```
 
 3. **Create ProviderConfig**
    ```bash
-   kubectl apply -f examples/provider/config.yaml
+   kubectl apply -f examples/providerconfig.yaml
    ```
 
 4. **Run the provider**
@@ -175,15 +176,16 @@ export B2_REGION="us-west-001"
 
 # 2. Apply test credentials
 kubectl create secret generic backblaze-test-creds \
-  --from-literal=credentials='{"applicationKeyId":"'$B2_APPLICATION_KEY_ID'","applicationKey":"'$B2_APPLICATION_KEY'","region":"'$B2_REGION'"}' \
+  --from-literal=applicationKeyId="$B2_APPLICATION_KEY_ID" \
+  --from-literal=applicationKey="$B2_APPLICATION_KEY" \
   -n crossplane-system
 
 # 3. Apply test resources
-kubectl apply -f examples/provider/config.yaml
-kubectl apply -f examples/bucket/bucket.yaml
+kubectl apply -f examples/providerconfig.yaml
+kubectl apply -f examples/bucket.yaml
 
 # 4. Check resource status
-kubectl describe bucket.bucket.backblaze.crossplane.io example-bucket
+kubectl describe buckets.backblaze.m.crossplane.io example-bucket -n default
 ```
 
 ### E2E Tests
@@ -200,7 +202,7 @@ go test -tags=e2e ./test/e2e/...
 
 ### 1. Define API Types
 
-Create new types in `apis/<group>/v1/types.go`:
+Create new types in `apis/backblaze/v1beta1/<resource>_types.go`:
 
 ```go
 // UserParameters are the configurable fields of a User (Application Key)
@@ -219,14 +221,14 @@ type UserObservation struct {
 
 // UserSpec defines the desired state of a User
 type UserSpec struct {
-    xpv1.ResourceSpec `json:",inline"`
-    ForProvider       UserParameters `json:"forProvider"`
+    xpv1.ManagedResourceSpec `json:",inline"`
+    ForProvider              UserParameters `json:"forProvider"`
 }
 
 // UserStatus represents the observed state of a User
 type UserStatus struct {
-    xpv1.ResourceStatus `json:",inline"`
-    AtProvider          UserObservation `json:"atProvider,omitempty"`
+    xpv1.ConditionedStatus `json:",inline"`
+    AtProvider             UserObservation `json:"atProvider,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -247,10 +249,10 @@ Create controller in `internal/controller/user/user.go`:
 
 ```go
 func Setup(mgr ctrl.Manager, o controller.Options) error {
-    name := managed.ControllerName(v1.UserGroupKind)
+    name := managed.ControllerName(v1beta1.UserGroupKind)
     
     r := managed.NewReconciler(mgr,
-        resource.ManagedKind(v1.UserGroupVersionKind),
+        resource.ManagedKind(v1beta1.UserGroupVersionKind),
         managed.WithExternalConnecter(&connector{
             kube:         mgr.GetClient(),
             usage:        resource.NewProviderConfigUsageTracker(mgr.GetClient(), &v1beta1.ProviderConfigUsage{}),
@@ -262,7 +264,7 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
     
     return ctrl.NewControllerManagedBy(mgr).
         Named(name).
-        For(&v1.User{}).
+        For(&v1beta1.User{}).
         Complete(r)
 }
 ```
@@ -332,7 +334,7 @@ kubectl edit deployment/provider-backblaze-*
 1. **CRD Installation Issues**
    ```bash
    # Reinstall CRDs
-   kubectl delete crd buckets.bucket.backblaze.crossplane.io
+   kubectl delete crd buckets.backblaze.m.crossplane.io
    make install
    ```
 
@@ -362,7 +364,7 @@ kubectl edit deployment/provider-backblaze-*
 kubectl logs -f -n crossplane-system deployment/provider-backblaze-*
 
 # Describe problematic resources
-kubectl describe bucket.bucket.backblaze.crossplane.io my-bucket
+kubectl describe buckets.backblaze.m.crossplane.io my-bucket -n default
 
 # Check events
 kubectl get events --field-selector involvedObject.name=my-bucket
@@ -419,8 +421,8 @@ make integration-test  # Requires B2 credentials
 ### 4. Tag Release
 
 ```bash
-git tag v0.5.1
-git push origin v0.5.1
+git tag v0.19.2
+git push origin v0.19.2
 ```
 
 ### 5. Build and Push Images
@@ -543,9 +545,9 @@ The provider uses a dual-client approach:
 
 ```
 ProviderConfig (v1beta1)
-├── Bucket (v1) - S3-compatible bucket management
-├── User (v1) - B2 application key management
-└── Policy (v1) - S3-compatible bucket policies
+├── Bucket (v1beta1, namespaced) - S3-compatible bucket management
+├── User (v1beta1, namespaced) - B2 application key management
+└── Policy (v1beta1, namespaced) - S3-compatible policy documents (status-only)
 ```
 
 ### Authentication Flow

@@ -18,17 +18,22 @@ limitations under the License.
 package apis
 
 import (
-	"k8s.io/apimachinery/pkg/runtime"
+	backblazev1beta1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1beta1"
+	"github.com/rossigee/provider-backblaze/apis/v1beta1"
 
-	backblazev1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1"
-	v1beta1 "github.com/rossigee/provider-backblaze/apis/v1beta1"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 func init() {
 	// Register the types with the Scheme so the components can map objects to GroupVersionKinds and back
-	AddToSchemes = append(AddToSchemes, v1beta1.SchemeBuilder.AddToScheme)
-	// v1 cluster-scoped APIs (Crossplane v2)
-	AddToSchemes = append(AddToSchemes, backblazev1.SchemeBuilder.AddToScheme)
+	// v1beta1 ProviderConfig
+	AddToSchemes = append(AddToSchemes,
+		v1beta1.SchemeBuilder.AddToScheme,
+	)
+	// v1beta1 managed resources (namespaced - Crossplane v2)
+	AddToSchemes = append(AddToSchemes,
+		backblazev1beta1.SchemeBuilder.AddToScheme,
+	)
 }
 
 // AddToSchemes may be used to add all resources defined in the project to a Scheme

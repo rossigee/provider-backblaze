@@ -14,28 +14,36 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package v1beta1 contains the v1beta1 group backblaze.m.crossplane.io resources of the provider.
 // +kubebuilder:object:generate=true
-// +groupName=backblaze.crossplane.io
-// +versionName=v1
-
-// Package v1 contains the v1 group backblaze.crossplane.io resources of provider-backblaze.
-package v1
+// +groupName=backblaze.m.crossplane.io
+// +versionName=v1beta1
+package v1beta1
 
 import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"sigs.k8s.io/controller-runtime/pkg/scheme"
 )
 
-// Package type metadata.
 const (
-	Group   = "backblaze.crossplane.io"
-	Version = "v1"
+	Group   = "backblaze.m.crossplane.io"
+	Version = "v1beta1"
 )
 
 var (
-	// SchemeGroupVersion is group version used to register these objects
 	SchemeGroupVersion = schema.GroupVersion{Group: Group, Version: Version}
-
-	// SchemeBuilder is used to add go types to the GroupVersionKind scheme
-	SchemeBuilder = &scheme.Builder{GroupVersion: SchemeGroupVersion} //nolint:staticcheck
+	SchemeBuilder      = runtime.NewSchemeBuilder(addKnownTypes)
+	AddToScheme        = SchemeBuilder.AddToScheme
 )
+
+func addKnownTypes(s *runtime.Scheme) error {
+	s.AddKnownTypes(SchemeGroupVersion,
+		&ProviderConfig{},
+		&ProviderConfigList{},
+		&ProviderConfigUsage{},
+		&ProviderConfigUsageList{},
+	)
+	metav1.AddToGroupVersion(s, SchemeGroupVersion)
+	return nil
+}

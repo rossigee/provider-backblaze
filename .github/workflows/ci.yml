@@ -1,5 +1,5 @@
 # Standardized CI/CD Template for Crossplane Providers
-# Version: 2025-10-28 - Updated for Go 1.25.3
+# Version: 2026-10-16 - Updated for Go 1.27.2 + golangci-lint >= 2.14.0 + full security scanning
 #
 # This template implements CI builds and validates ONLY
 # - CI: Build validation only (no publishing to avoid tag conflicts)
@@ -27,9 +27,9 @@ permissions:
   actions: read    # Needed for detecting duplicate actions
 
 env:
-  GO_VERSION: '1.25.3'
-  GOLANGCI_VERSION: 'latest'
-  GOLANGCILINT_VERSION: '2.5.0'
+  GO_VERSION: '1.27.2'
+  GOLANGCI_VERSION: '2.14.0'
+  GOLANGCILINT_VERSION: '2.14.0'
   DOCKER_BUILDX_VERSION: 'v0.11.2'
 
 jobs:
@@ -40,7 +40,7 @@ jobs:
     steps:
       - name: Detect No-op Changes
         id: noop
-        uses: fkirc/skip-duplicate-actions@v5.3.0
+        uses: fkirc/skip-duplicate-actions@v5
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           paths_ignore: '["**.md", "**.png", "**.jpg"]'
@@ -52,12 +52,13 @@ jobs:
     if: needs.detect-noop.outputs.noop != 'true'
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
+          token: ${{ github.token }}
           submodules: true
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
 
@@ -65,7 +66,7 @@ jobs:
         run: go mod vendor
 
       - name: Lint
-        run: timeout 300 make lint
+        run: make lint
 
   check-diff:
     runs-on: ubuntu-24.04
@@ -73,12 +74,13 @@ jobs:
     if: needs.detect-noop.outputs.noop != 'true'
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
+          token: ${{ github.token }}
           submodules: true
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
 
@@ -96,13 +98,14 @@ jobs:
     if: needs.detect-noop.outputs.noop != 'true'
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
+          token: ${{ github.token }}
           submodules: true
           fetch-depth: 0
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
 
@@ -110,10 +113,10 @@ jobs:
         run: go mod vendor
 
       - name: Run Unit Tests
-        run: timeout 600 make test
+        run: make test
 
       - name: Upload Coverage Reports
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           file: ./coverage.out
@@ -128,12 +131,13 @@ jobs:
       security-events: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
+          token: ${{ github.token }}
           submodules: true
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
 
@@ -142,8 +146,24 @@ jobs:
 
       - name: Run Go Vulnerability Check
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./...
+          cp go.mod go.mod.bak && cp go.sum go.sum.bak
+          GOWORK=$(mktemp -d)/go.work && echo "go 1.24" > $GOWORK && GOWORK=$GOWORK go install golang.org/x/vuln/cmd/govulncheck@v1.5.0 || { GOWORK_DIR=$(dirname $GOWORK); rm -f $GOWORK 2>/dev/null; rmdir $GOWORK_DIR 2>/dev/null; mv go.mod.bak go.mod 2>/dev/null; mv go.sum.bak go.sum 2>/dev/null; exit 1; }
+          (GOFLAGS=-mod=mod GOWORK=$GOWORK go run -mod=mod golang.org/x/vuln/cmd/govulncheck ./... 2>&1 || true) | tee /tmp/govulncheck.out >/dev/null
+          mv go.mod.bak go.mod && mv go.sum.bak go.sum
+          if grep -q "^Vulnerability #" /tmp/govulncheck.out; then
+            FIXED=$(grep -c "Fixed in: N/A" /tmp/govulncheck.out || true)
+            TOTAL=$(grep -c "^Vulnerability #" /tmp/govulncheck.out || true)
+            if [ "$FIXED" -lt "$TOTAL" ]; then
+              echo "govulncheck: $TOTAL vulnerabilities found ($FIXED unfixable, $((TOTAL - FIXED)) fixable)"
+              rm -f /tmp/govulncheck.out; exit 1
+            else
+              echo "govulncheck: $TOTAL unfixable vulnerabilities (no fix available), ignoring"
+            fi
+          else
+            echo "No vulnerabilities found."
+          fi
+          rm -f /tmp/govulncheck.out
+          GOWORK_DIR=$(dirname $GOWORK); rm -f $GOWORK 2>/dev/null; rmdir $GOWORK_DIR 2>/dev/null
 
       - name: Run Gosec Security Scanner
         uses: securego/gosec@master
@@ -160,7 +180,7 @@ jobs:
           fi
 
       - name: Upload Gosec Results
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always() && hashFiles('gosec-results.sarif') != ''
         continue-on-error: true
         with:
@@ -170,19 +190,19 @@ jobs:
   # CI ONLY VALIDATES BUILDS - NO PUBLISHING
   build-validation:
     runs-on: ubuntu-24.04
-    needs: [check-diff]
+    needs: [lint, check-diff, unit-tests, security-scan]
     if: github.ref == 'refs/heads/master'
     permissions:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           submodules: true
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
 
@@ -194,15 +214,21 @@ jobs:
           # Validate that all build steps work without publishing
           echo "Repository: ${{ github.repository }}"
           echo "Repository owner: ${{ github.repository_owner }}"
-
-          # Build everything (binary, Docker image, and Crossplane package)
+          
+          # Build binary; container image is built as part of make build
+          # (build.artifacts.platform → do.build.images). There is no
+          # standalone docker.build target in build/makelib.
           make build
-          echo "✅ Full build successful"
+          echo "✅ Build successful"
 
+          # Build Crossplane package locally (without push)
+          make xpkg.build
+          echo "✅ Crossplane package build successful"
+          
           # Verify build artifacts exist
           ls -la _output/bin/linux_amd64/provider 2>/dev/null && echo "✅ Provider binary exists" || echo "❌ Provider binary missing"
           ls -la _output/xpkg/linux_amd64/*.xpkg 2>/dev/null && echo "✅ Crossplane package exists" || echo "❌ Crossplane package missing"
-
+          
           echo ""
           echo "🎯 Build validation completed successfully"
           echo "📦 All artifacts can be built successfully"

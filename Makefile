@@ -9,8 +9,8 @@ PLATFORMS ?= linux_amd64 linux_arm64
 -include build/makelib/output.mk
 
 # Setup Go
-GOLANGCILINT_VERSION ?= 2.12.2
-GO_REQUIRED_VERSION ?= 1.26.4.3
+GOLANGCILINT_VERSION ?= 2.14.0
+GO_REQUIRED_VERSION ?= 1.27.2
 NPROCS ?= 1
 GO_TEST_PARALLEL := $(shell echo $$(( $(NPROCS) / 2 )))
 GO_STATIC_PACKAGES = $(GO_PROJECT)/cmd/provider
@@ -20,7 +20,7 @@ GO111MODULE = on
 -include build/makelib/golang.mk
 
 # Setup Kubernetes tools
-UP_VERSION = v0.28.0
+UP_VERSION = v0.40.3
 UP_CHANNEL = stable
 UPTEST_VERSION = v0.11.1
 -include build/makelib/k8s_tools.mk
@@ -41,13 +41,20 @@ XPKG_REG_ORGS_NO_PROMOTE = ghcr.io/rossigee
 # To enable Upbound: export ENABLE_UPBOUND_PUBLISH=true make publish XPKG_REG_ORGS=xpkg.upbound.io/crossplane-contrib
 XPKGS = provider-backblaze
 -include build/makelib/xpkg.mk
+# Override xpkg publish to build all platforms (stock build only builds current arch)
+xpkg.release.publish.ghcr.io/rossigee.provider-backblaze:
+	@$(foreach plat,$(XPKG_LINUX_PLATFORMS),$(MAKE) xpkg.build.provider-backblaze PLATFORM=$(plat) || exit 1;)
+	@$(CROSSPLANE_CLI) xpkg push \
+		$(foreach plat,$(XPKG_LINUX_PLATFORMS),--package-files $(XPKG_OUTPUT_DIR)/$(plat)/provider-backblaze-$(VERSION).xpkg ) \
+		ghcr.io/rossigee/provider-backblaze:$(VERSION)
+	@$(OK) Pushed package ghcr.io/rossigee/provider-backblaze:$(VERSION)
 
 # NOTE: we force image building to happen prior to xpkg build so that we ensure
 # image is present in daemon.
 xpkg.build.provider-backblaze: do.build.images
 
 # Setup Package Metadata
-CROSSPLANE_VERSION = 2.0.2
+CROSSPLANE_VERSION = 2.5.0
 -include build/makelib/local.xpkg.mk
 -include build/makelib/controlplane.mk
 
@@ -139,3 +146,7 @@ test-integration-bench:
 	go test -v ./test/integration/... -bench=. -benchtime=10s -timeout 10m
 
 .PHONY: submodules run install-crds uninstall-crds install-examples delete-examples test-integration test-integration-debug test-integration-bench
+
+# Neutralize plain image publish for ghcr (xpkg uses same ref; plain push would clobber package.yaml)
+img.release.publish.ghcr.io/rossigee.provider-backblaze:
+	@:

@@ -16,6 +16,6 @@ limitations under the License.
 
 // Package v1beta1 contains the provider configuration API.
 // +kubebuilder:object:generate=true
-// +groupName=backblaze.crossplane.io
+// +groupName=backblaze.m.crossplane.io
 // +versionName=v1beta1
 package v1beta1

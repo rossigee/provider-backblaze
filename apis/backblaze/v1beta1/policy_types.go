@@ -14,13 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1
+package v1beta1
 
 import (
-	"reflect"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	xpv1 "github.com/crossplane/crossplane/apis/v2/core/v2"
 )
@@ -30,16 +27,13 @@ type PolicyParameters struct {
 	// PolicyName is the name for this policy.
 	// +optional
 	PolicyName *string `json:"policyName,omitempty"`
-
 	// Description provides a human-readable description of the policy.
 	// +optional
 	Description *string `json:"description,omitempty"`
-
 	// AllowBucket creates a simple policy that allows all operations for the specified bucket.
 	// This is mutually exclusive with RawPolicy.
 	// +optional
 	AllowBucket *string `json:"allowBucket,omitempty"`
-
 	// RawPolicy contains the complete S3-compatible policy document as JSON.
 	// This is mutually exclusive with AllowBucket.
 	// +optional
@@ -50,67 +44,52 @@ type PolicyParameters struct {
 type PolicyObservation struct {
 	// PolicyName is the name of the policy.
 	PolicyName string `json:"policyName,omitempty"`
-
 	// PolicyDocument is the actual policy document stored.
 	PolicyDocument string `json:"policyDocument,omitempty"`
-
 	// PolicyID is the unique identifier for the policy (if applicable).
 	PolicyID string `json:"policyId,omitempty"`
-
 	// CreationTime is when the policy was created.
 	CreationTime *metav1.Time `json:"creationTime,omitempty"`
-}
-
-// A PolicySpec defines the desired state of a Policy.
-type PolicySpec struct {
-	xpv1.ManagedResourceSpec `json:",inline"`
-	ForProvider       PolicyParameters `json:"forProvider"`
-}
-
-// A PolicyStatus represents the observed state of a Policy.
-type PolicyStatus struct {
-	xpv1.ManagedResourceStatus `json:",inline"`
-	AtProvider          PolicyObservation `json:"atProvider,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
-// +kubebuilder:resource:scope=Cluster,categories={crossplane,managed,backblaze}
+// +kubebuilder:resource:scope=Namespaced,categories={crossplane,managed,backblaze}
 // +kubebuilder:printcolumn:name="READY",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="SYNCED",type="string",JSONPath=".status.conditions[?(@.type=='Synced')].status"
-// +kubebuilder:printcolumn:name="EXTERNAL NAME",type="string",JSONPath=".metadata.annotations.crossplane\\.io/external-name"
+// +kubebuilder:printcolumn:name="EXTERNAL-NAME",type="string",JSONPath=".metadata.annotations.crossplane\\.io/external-name"
 // +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp"
-// +kubebuilder:printcolumn:name="POLICY NAME",type="string",JSONPath=".status.atProvider.policyName"
+// +genclient
+// +genclient:namespaced
+// +groupName=backblaze.m.crossplane.io
 
 // A Policy represents a Backblaze B2 S3-compatible policy.
 type Policy struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+	Spec              PolicySpec   `json:"spec"`
+	Status            PolicyStatus `json:"status,omitempty"`
+}
 
-	Spec   PolicySpec   `json:"spec"`
-	Status PolicyStatus `json:"status,omitempty"`
+type PolicySpec struct {
+	xpv1.ManagedResourceSpec `json:",inline"`
+	ForProvider              PolicyParameters `json:"forProvider"`
+}
+
+// PolicyStatus represents the observed state of a Policy.
+type PolicyStatus struct {
+	xpv1.ManagedResourceStatus `json:",inline"`
+	AtProvider                 PolicyObservation `json:"atProvider,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// PolicyList contains a list of Policy
+// PolicyList contains a list of Policy.
 type PolicyList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []Policy `json:"items"`
-}
-
-// Policy type metadata.
-var (
-	PolicyKind             = reflect.TypeOf(Policy{}).Name()
-	PolicyGroupKind        = schema.GroupKind{Group: Group, Kind: PolicyKind}
-	PolicyKindAPIVersion   = PolicyKind + "." + SchemeGroupVersion.String()
-	PolicyGroupVersionKind = SchemeGroupVersion.WithKind(PolicyKind)
-)
-
-func init() {
-	SchemeBuilder.Register(&Policy{}, &PolicyList{})
 }
 
 // GetPolicyName returns the policy name from the Policy resource.

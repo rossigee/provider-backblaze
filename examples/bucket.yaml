@@ -1,4 +1,4 @@
-apiVersion: bucket.backblaze.m.crossplane.io/v1beta1
+apiVersion: backblaze.m.crossplane.io/v1beta1
 kind: Bucket
 metadata:
   name: my-storage-bucket
@@ -37,15 +37,10 @@ spec:
       allowedHeaders:
       - "Authorization"
       - "Content-Type"
-      allowedOperations:
+      allowedMethods:
       - "b2_download_file_by_name"
       - "b2_upload_file"
       maxAgeSeconds: 3600
 
   providerConfigRef:
     name: default
-
-  # Crossplane deletion policy
-  # Delete: remove the bucket when this resource is deleted
-  # Orphan: leave the bucket in Backblaze when this resource is deleted  
-  deletionPolicy: Delete

@@ -3,10 +3,10 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.19.0
-  name: providerconfigs.backblaze.crossplane.io
+    controller-gen.kubebuilder.io/version: v0.21.0
+  name: providerconfigs.backblaze.m.crossplane.io
 spec:
-  group: backblaze.crossplane.io
+  group: backblaze.m.crossplane.io
   names:
     kind: ProviderConfig
     listKind: ProviderConfigList
@@ -34,6 +34,8 @@ spec:
               In CamelCase.
               More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
+          metadata:
+            type: object
           spec:
             description: A ProviderConfigSpec defines the desired state of a ProviderConfig.
             properties:
