@@ -13,7 +13,7 @@ kind: Provider
 metadata:
   name: provider-backblaze
 spec:
-  package: ghcr.io/rossigee/provider-backblaze:v0.19.2
+  package: ghcr.io/rossigee/provider-backblaze:v0.19.3
 EOF
 ```
 
