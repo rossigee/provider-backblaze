@@ -34,6 +34,7 @@ import (
 
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -313,9 +314,12 @@ func isS3NotFound(err error) bool {
 	if err == nil || !errors.As(err, &apiErr) {
 		return false
 	}
-	switch apiErr.ErrorCode() {
-	case "NotFound", "NoSuchBucket", "NoSuchKey", "NoSuchBucketPolicy",
-		"NoSuchLifecycleConfiguration", "NoSuchCORSConfiguration":
+	// Backblaze B2 returns the CORS error code as "NoSuchCorsConfiguration"
+	// (mixed case), while AWS uses "NoSuchCORSConfiguration". Normalise the
+	// case so both spellings are recognised.
+	switch strings.ToLower(apiErr.ErrorCode()) {
+	case "notfound", "nosuchbucket", "nosuchkey", "nosuchbucketpolicy",
+		"nosuchlifecycleconfiguration", "nosuchcorsconfiguration":
 		return true
 	}
 	return false
@@ -766,7 +770,7 @@ func (c *BackblazeClient) GetBucketPolicy(ctx context.Context, bucketName string
 
 	result, err := c.S3Client.GetBucketPolicy(ctx, input)
 	if err != nil {
-		if isS3NotFound(err) || err.Error() == "NoSuchBucketPolicy" {
+		if isS3NotFound(err) {
 			return "", ErrBucketPolicyNotFound
 		}
 		return "", errors.Wrap(err, "failed to get bucket policy")
@@ -802,7 +806,7 @@ func (c *BackblazeClient) DeleteBucketPolicy(ctx context.Context, bucketName str
 
 	_, err := c.S3Client.DeleteBucketPolicy(ctx, input)
 	if err != nil {
-		if isS3NotFound(err) || err.Error() == "NoSuchBucketPolicy" {
+		if isS3NotFound(err) {
 			return ErrBucketPolicyNotFound
 		}
 		return errors.Wrap(err, "failed to delete bucket policy")
@@ -822,7 +826,7 @@ func (c *BackblazeClient) GetBucketLifecycleConfiguration(ctx context.Context, b
 
 	result, err := c.S3Client.GetBucketLifecycleConfiguration(ctx, input)
 	if err != nil {
-		if isS3NotFound(err) || err.Error() == "NoSuchLifecycleConfiguration" {
+		if isS3NotFound(err) {
 			return nil, ErrBucketLifecycleNotFound
 		}
 		return nil, errors.Wrap(err, "failed to get bucket lifecycle configuration")
@@ -848,7 +852,7 @@ func (c *BackblazeClient) DeleteBucketLifecycleConfiguration(ctx context.Context
 		Bucket: aws.String(bucketName),
 	}
 	if _, err := c.S3Client.DeleteBucketLifecycle(ctx, input); err != nil {
-		if isS3NotFound(err) || err.Error() == "NoSuchLifecycleConfiguration" {
+		if isS3NotFound(err) {
 			return ErrBucketLifecycleNotFound
 		}
 		return errors.Wrap(err, "failed to delete bucket lifecycle configuration")
@@ -869,7 +873,7 @@ func (c *BackblazeClient) GetBucketCors(ctx context.Context, bucketName string) 
 	}
 	result, err := c.S3Client.GetBucketCors(ctx, input)
 	if err != nil {
-		if isS3NotFound(err) || err.Error() == "NoSuchCORSConfiguration" {
+		if isS3NotFound(err) {
 			return nil, ErrBucketCorsNotFound
 		}
 		return nil, errors.Wrap(err, "failed to get bucket cors configuration")
@@ -895,7 +899,7 @@ func (c *BackblazeClient) DeleteBucketCors(ctx context.Context, bucketName strin
 		Bucket: aws.String(bucketName),
 	}
 	if _, err := c.S3Client.DeleteBucketCors(ctx, input); err != nil {
-		if isS3NotFound(err) || err.Error() == "NoSuchCORSConfiguration" {
+		if isS3NotFound(err) {
 			return ErrBucketCorsNotFound
 		}
 		return errors.Wrap(err, "failed to delete bucket cors configuration")
