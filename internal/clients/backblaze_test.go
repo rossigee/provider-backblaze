@@ -683,6 +683,8 @@ func TestIsS3NotFound(t *testing.T) {
 		{"wrapped NoSuchBucket", fmt.Errorf("wrapped: %w", awsErr("NoSuchBucket", 404)), true},
 		{"NoSuchLifecycleConfiguration", awsErr("NoSuchLifecycleConfiguration", 404), true},
 		{"NoSuchCORSConfiguration", awsErr("NoSuchCORSConfiguration", 404), true},
+		{"NoSuchCorsConfiguration (B2 spelling)", awsErr("NoSuchCorsConfiguration", 404), true},
+		{"nosuchcorsconfiguration (lowercase)", awsErr("nosuchcorsconfiguration", 404), true},
 		{"NoSuchBucketPolicy", awsErr("NoSuchBucketPolicy", 404), true},
 		{"plain NotFound", awsErr("NotFound", 404), true},
 		{"NotFound-like code 404", awsErr("AccessDenied", 403), false},
@@ -1245,16 +1247,20 @@ func TestBucketCors_RoundTrip(t *testing.T) {
 }
 
 func TestBucketCors_NotFound(t *testing.T) {
-	c, _ := newS3StubClient(t, func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/xml")
-		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte(s3ErrorXML("NoSuchCORSConfiguration")))
-	})
-	if _, err := c.GetBucketCors(context.Background(), "bkt"); !errors.Is(err, ErrBucketCorsNotFound) {
-		t.Errorf("expected ErrBucketCorsNotFound, got %v", err)
-	}
-	if err := c.DeleteBucketCors(context.Background(), "bkt"); !errors.Is(err, ErrBucketCorsNotFound) {
-		t.Errorf("expected ErrBucketCorsNotFound, got %v", err)
+	for _, code := range []string{"NoSuchCORSConfiguration", "NoSuchCorsConfiguration", "nosuchcorsconfiguration"} {
+		t.Run(code, func(t *testing.T) {
+			c, _ := newS3StubClient(t, func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/xml")
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = w.Write([]byte(s3ErrorXML(code)))
+			})
+			if _, err := c.GetBucketCors(context.Background(), "bkt"); !errors.Is(err, ErrBucketCorsNotFound) {
+				t.Errorf("expected ErrBucketCorsNotFound, got %v", err)
+			}
+			if err := c.DeleteBucketCors(context.Background(), "bkt"); !errors.Is(err, ErrBucketCorsNotFound) {
+				t.Errorf("expected ErrBucketCorsNotFound, got %v", err)
+			}
+		})
 	}
 }
 
