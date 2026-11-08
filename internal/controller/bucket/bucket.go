@@ -19,6 +19,7 @@ package bucket
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -103,6 +104,7 @@ func (r *BucketReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 		logger.Error(err, "Failed to get Bucket")
 		return reconcile.Result{}, err
 	}
+	statusBefore := bucket.Status.DeepCopy()
 
 	logger.Info("Reconciling bucket", "bucketName", bucket.Spec.ForProvider.BucketName)
 
@@ -122,7 +124,7 @@ func (r *BucketReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 			logger.Info("ProviderConfig not found, retrying in 10 seconds (likely cache sync issue)")
 		}
 		r.emitWarning(bucket, "ClientError", err)
-		return reconcile.Result{RequeueAfter: requeueAfter}, r.Client.Status().Update(ctx, bucket)
+		return reconcile.Result{RequeueAfter: requeueAfter}, r.updateStatusIfChanged(ctx, bucket, statusBefore)
 	}
 
 	bucketName := bucket.GetBucketName()
@@ -137,7 +139,7 @@ func (r *BucketReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 		logger.Error(err, "Failed to list buckets in B2")
 		r.setCondition(bucket, xpv1.TypeReady, "False", "ObserveError", err.Error())
 		r.emitWarning(bucket, "ObserveError", err)
-		return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, bucket)
+		return reconcile.Result{RequeueAfter: time.Minute}, r.updateStatusIfChanged(ctx, bucket, statusBefore)
 	}
 
 	var current *b2BucketSummary
@@ -167,7 +169,7 @@ func (r *BucketReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 		if !shouldCreate(bucket.GetManagementPolicies()) {
 			logger.Info("Skipping bucket creation due to managementPolicies", "managementPolicies", bucket.GetManagementPolicies())
 			r.setCondition(bucket, xpv1.TypeReady, "False", "ObserveOnly", "External resource does not exist and creation is disabled by managementPolicies")
-			return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, bucket)
+			return reconcile.Result{RequeueAfter: time.Minute}, r.updateStatusIfChanged(ctx, bucket, statusBefore)
 		}
 		logger.Info("Creating bucket", "bucketName", bucketName, "bucketType", bucketType)
 		info := clients.B2BucketInfo(bucket.Spec.ForProvider.BucketInfo)
@@ -181,7 +183,7 @@ func (r *BucketReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 			logger.Error(err, "Failed to create bucket")
 			r.setCondition(bucket, xpv1.TypeReady, "False", "CreateError", err.Error())
 			r.emitWarning(bucket, "CreateError", err)
-			return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, bucket)
+			return reconcile.Result{RequeueAfter: time.Minute}, r.updateStatusIfChanged(ctx, bucket, statusBefore)
 		}
 		meta.SetExternalName(bucket, bucketName)
 		current = &b2BucketSummary{
@@ -211,7 +213,7 @@ func (r *BucketReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 				logger.Error(err, "Failed to update bucket type")
 				r.setCondition(bucket, xpv1.TypeReady, "False", errApplyBucketType, err.Error())
 				r.emitWarning(bucket, "ApplyTypeError", err)
-				return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, bucket)
+				return reconcile.Result{RequeueAfter: time.Minute}, r.updateStatusIfChanged(ctx, bucket, statusBefore)
 			}
 			current.BucketType = bucketType
 		}
@@ -222,7 +224,7 @@ func (r *BucketReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 		logger.Error(err, "Unable to reconcile lifecycle rules")
 		r.setCondition(bucket, xpv1.TypeReady, "False", errApplyLifecycle, err.Error())
 		r.emitWarning(bucket, "ApplyLifecycleError", err)
-		return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, bucket)
+		return reconcile.Result{RequeueAfter: time.Minute}, r.updateStatusIfChanged(ctx, bucket, statusBefore)
 	}
 
 	// CORS rules drift.
@@ -230,7 +232,7 @@ func (r *BucketReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 		logger.Error(err, "Unable to reconcile CORS rules")
 		r.setCondition(bucket, xpv1.TypeReady, "False", errApplyCors, err.Error())
 		r.emitWarning(bucket, "ApplyCorsError", err)
-		return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, bucket)
+		return reconcile.Result{RequeueAfter: time.Minute}, r.updateStatusIfChanged(ctx, bucket, statusBefore)
 	}
 
 	// bucketInfo / SSE / file lock / retention. All handled via the same native
@@ -240,7 +242,7 @@ func (r *BucketReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 		logger.Error(err, "Unable to reconcile native bucket settings")
 		r.setCondition(bucket, xpv1.TypeReady, "False", errApplyBucketType, err.Error())
 		r.emitWarning(bucket, "ApplyNativeError", err)
-		return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, bucket)
+		return reconcile.Result{RequeueAfter: time.Minute}, r.updateStatusIfChanged(ctx, bucket, statusBefore)
 	}
 
 	bucket.Status.AtProvider.BucketName = bucketName
@@ -254,7 +256,7 @@ func (r *BucketReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 	}
 	r.setCondition(bucket, xpv1.TypeSynced, "True", "ReconcileSuccess", syncedMsg)
 
-	if err := r.Client.Status().Update(ctx, bucket); err != nil {
+	if err := r.updateStatusIfChanged(ctx, bucket, statusBefore); err != nil {
 		logger.Error(err, "Failed to update bucket status")
 		return reconcile.Result{}, err
 	}
@@ -712,4 +714,16 @@ func shouldDelete(mp xpv1.ManagementPolicies) bool {
 		}
 	}
 	return false
+}
+
+// updateStatusIfChanged writes the bucket's status back to the API only when
+// something actually changed. An unchanged status write still bumps the
+// resourceVersion, which re-triggers this controller's own watch on buckets and
+// re-enqueues the item immediately, bypassing the rate limiter. Skipping the
+// write when nothing changed breaks that hot loop.
+func (r *BucketReconciler) updateStatusIfChanged(ctx context.Context, bucket *backblazev1beta1.Bucket, before *backblazev1beta1.BucketStatus) error {
+	if reflect.DeepEqual(before, &bucket.Status) {
+		return nil
+	}
+	return r.Client.Status().Update(ctx, bucket)
 }
