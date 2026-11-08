@@ -92,6 +92,8 @@ func (r *PolicyReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 		return reconcile.Result{}, err
 	}
 
+	statusBefore := policy.Status.DeepCopy()
+
 	logger.Info("Reconciling policy", "policyName", policy.GetPolicyName())
 
 	// Check for deletion
@@ -108,13 +110,13 @@ func (r *PolicyReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 		if strings.Contains(err.Error(), "not found") {
 			requeueAfter = 10 * time.Second
 		}
-		return reconcile.Result{RequeueAfter: requeueAfter}, r.Client.Status().Update(ctx, policy)
+		return reconcile.Result{RequeueAfter: requeueAfter}, r.updateStatusIfChanged(ctx, policy, statusBefore)
 	}
 
 	// Validate the spec - exactly one of AllowBucket/RawPolicy must be set
 	if err := validatePolicyParams(policy.Spec.ForProvider); err != nil {
 		r.setCondition(policy, xpv1.TypeReady, "False", "InvalidSpec", err.Error())
-		return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, policy)
+		return reconcile.Result{RequeueAfter: time.Minute}, r.updateStatusIfChanged(ctx, policy, statusBefore)
 	}
 
 	// Resolve which bucket this policy attaches to. AllowBucket is the explicit
@@ -122,7 +124,7 @@ func (r *PolicyReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 	bucketName := resolveBucketName(policy)
 	if bucketName == "" {
 		r.setCondition(policy, xpv1.TypeReady, "False", "InvalidSpec", "could not determine target bucket name")
-		return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, policy)
+		return reconcile.Result{RequeueAfter: time.Minute}, r.updateStatusIfChanged(ctx, policy, statusBefore)
 	}
 
 	// Verify the target bucket exists before we try to attach a policy to it.
@@ -130,19 +132,19 @@ func (r *PolicyReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 	if err != nil {
 		logger.Error(err, "Failed to check bucket existence")
 		r.setCondition(policy, xpv1.TypeReady, "False", "CheckError", err.Error())
-		return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, policy)
+		return reconcile.Result{RequeueAfter: time.Minute}, r.updateStatusIfChanged(ctx, policy, statusBefore)
 	}
 	if !exists {
 		logger.Info("Target bucket does not exist", "bucketName", bucketName)
 		r.setCondition(policy, xpv1.TypeReady, "False", "BucketNotFound",
 			fmt.Sprintf("target bucket %q does not exist in Backblaze B2", bucketName))
-		return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, policy)
+		return reconcile.Result{RequeueAfter: time.Minute}, r.updateStatusIfChanged(ctx, policy, statusBefore)
 	}
 
 	desiredDoc, err := renderPolicyDocument(policy.Spec.ForProvider)
 	if err != nil {
 		r.setCondition(policy, xpv1.TypeReady, "False", "InvalidSpec", err.Error())
-		return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, policy)
+		return reconcile.Result{RequeueAfter: time.Minute}, r.updateStatusIfChanged(ctx, policy, statusBefore)
 	}
 
 	// Observe current bucket policy.
@@ -154,7 +156,7 @@ func (r *PolicyReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 		} else {
 			logger.Error(getErr, "Failed to read bucket policy")
 			r.setCondition(policy, xpv1.TypeReady, "False", "ObserveError", getErr.Error())
-			return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, policy)
+			return reconcile.Result{RequeueAfter: time.Minute}, r.updateStatusIfChanged(ctx, policy, statusBefore)
 		}
 	}
 
@@ -165,12 +167,12 @@ func (r *PolicyReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 				"bucketName", bucketName)
 			r.setCondition(policy, xpv1.TypeReady, "False", "ObserveOnly",
 				"Bucket policy drift detected and managementPolicies disallows creation")
-			return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, policy)
+			return reconcile.Result{RequeueAfter: time.Minute}, r.updateStatusIfChanged(ctx, policy, statusBefore)
 		}
 		if err := service.PutBucketPolicy(ctx, bucketName, desiredDoc); err != nil {
 			logger.Error(err, "Failed to apply bucket policy", "bucketName", bucketName)
 			r.setCondition(policy, xpv1.TypeReady, "False", "ApplyError", err.Error())
-			return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, policy)
+			return reconcile.Result{RequeueAfter: time.Minute}, r.updateStatusIfChanged(ctx, policy, statusBefore)
 		}
 		logger.Info("Applied bucket policy", "bucketName", bucketName, "created", !hasPolicy)
 	}
@@ -188,7 +190,7 @@ func (r *PolicyReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 	r.setCondition(policy, xpv1.TypeSynced, "True", "ReconcileSuccess", "Successfully reconciled")
 
 	logger.Info("Successfully reconciled policy", "bucketName", bucketName, "drift", drift)
-	return reconcile.Result{RequeueAfter: 5 * time.Minute}, r.Client.Status().Update(ctx, policy)
+	return reconcile.Result{RequeueAfter: 5 * time.Minute}, r.updateStatusIfChanged(ctx, policy, statusBefore)
 }
 
 func (r *PolicyReconciler) handleDeletion(ctx context.Context, policy *backblazev1beta1.Policy) (reconcile.Result, error) {
@@ -374,4 +376,16 @@ func shouldDelete(mp xpv1.ManagementPolicies) bool {
 		}
 	}
 	return false
+}
+
+// updateStatusIfChanged writes the status back to the API only when something
+// actually changed. An unchanged status write still bumps the resourceVersion,
+// which re-triggers this controller's own watch and re-enqueues the item
+// immediately, bypassing the rate limiter. Skipping the write when nothing
+// changed breaks that hot loop.
+func (r *PolicyReconciler) updateStatusIfChanged(ctx context.Context, x *backblazev1beta1.Policy, before *backblazev1beta1.PolicyStatus) error {
+	if reflect.DeepEqual(before, &x.Status) {
+		return nil
+	}
+	return r.Client.Status().Update(ctx, x)
 }

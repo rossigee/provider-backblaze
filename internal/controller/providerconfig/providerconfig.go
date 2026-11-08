@@ -18,6 +18,7 @@ package providerconfig
 
 import (
 	"context"
+	"reflect"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -57,9 +58,18 @@ func (r *reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		return reconcile.Result{}, client.IgnoreNotFound(err)
 	}
 
+	statusBefore := pc.Status.DeepCopy()
+
 	// Mark as available - actual connectivity would be checked per-resource
 	log.Info("ProviderConfig available")
 	pc.Status.SetConditions(xpv1.Available())
+
+	// Only write when the status actually changed. An unconditional write
+	// bumps the resourceVersion every pass, which re-triggers this controller's
+	// own watch on the ProviderConfig and loops the reconcile forever.
+	if reflect.DeepEqual(statusBefore, &pc.Status) {
+		return reconcile.Result{}, nil
+	}
 
 	fresh := &v1beta1.ProviderConfig{}
 	if err := r.kube.Get(ctx, client.ObjectKey{Name: pc.GetName(), Namespace: pc.GetNamespace()}, fresh); err != nil {

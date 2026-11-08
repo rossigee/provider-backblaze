@@ -18,6 +18,7 @@ package user
 
 import (
 	"context"
+	"reflect"
 	"strings"
 	"time"
 
@@ -97,6 +98,8 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req reconcile.Request) (
 		return reconcile.Result{}, err
 	}
 
+	statusBefore := user.Status.DeepCopy()
+
 	logger.Info("Reconciling user", "keyName", user.Spec.ForProvider.KeyName)
 
 	// Check for deletion - in this simple implementation, we let Kubernetes handle deletion
@@ -117,7 +120,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req reconcile.Request) (
 		if r.Recorder != nil {
 			r.Recorder.Event(user, event.Warning("ClientError", errors.New(err.Error())))
 		}
-		return reconcile.Result{RequeueAfter: requeueAfter}, r.Client.Status().Update(ctx, user)
+		return reconcile.Result{RequeueAfter: requeueAfter}, r.updateStatusIfChanged(ctx, user, statusBefore)
 	}
 
 	// Determine whether the application key exists in B2.
@@ -144,7 +147,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req reconcile.Request) (
 			if r.Recorder != nil {
 				r.Recorder.Event(user, event.Warning("ObserveError", errors.New(getErr.Error())))
 			}
-			return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, user)
+			return reconcile.Result{RequeueAfter: time.Minute}, r.updateStatusIfChanged(ctx, user, statusBefore)
 		}
 	}
 
@@ -152,7 +155,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req reconcile.Request) (
 		if !shouldCreate(user.GetManagementPolicies()) {
 			logger.Info("Skipping application key creation due to managementPolicies", "managementPolicies", user.GetManagementPolicies())
 			r.setCondition(user, xpv1.TypeReady, "False", "ObserveOnly", "External resource does not exist and creation is disabled by managementPolicies")
-			return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, user)
+			return reconcile.Result{RequeueAfter: time.Minute}, r.updateStatusIfChanged(ctx, user, statusBefore)
 		}
 		if err := r.createApplicationKey(ctx, user, service); err != nil {
 			logger.Error(err, "Failed to create application key")
@@ -160,7 +163,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req reconcile.Request) (
 			if r.Recorder != nil {
 				r.Recorder.Event(user, event.Warning("CreateError", errors.New(err.Error())))
 			}
-			return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, user)
+			return reconcile.Result{RequeueAfter: time.Minute}, r.updateStatusIfChanged(ctx, user, statusBefore)
 		}
 	} else {
 		// Live key exists; reconcile spec drift via b2_update_key.
@@ -170,7 +173,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req reconcile.Request) (
 			if r.Recorder != nil {
 				r.Recorder.Event(user, event.Warning("UpdateError", errors.New(err.Error())))
 			}
-			return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, user)
+			return reconcile.Result{RequeueAfter: time.Minute}, r.updateStatusIfChanged(ctx, user, statusBefore)
 		}
 		if secretRef := user.GetWriteConnectionSecretToReference(); secretRef != nil && secretRef.Name != "" {
 			// Key still exists in B2; make sure the local connection secret is
@@ -182,7 +185,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req reconcile.Request) (
 				if r.Recorder != nil {
 					r.Recorder.Event(user, event.Warning("SecretError", errors.New(err.Error())))
 				}
-				return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, user)
+				return reconcile.Result{RequeueAfter: time.Minute}, r.updateStatusIfChanged(ctx, user, statusBefore)
 			}
 		}
 	}
@@ -191,7 +194,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req reconcile.Request) (
 	r.setCondition(user, xpv1.TypeSynced, "True", "ReconcileSuccess", "Successfully reconciled")
 
 	logger.Info("Successfully reconciled user")
-	return reconcile.Result{RequeueAfter: 5 * time.Minute}, r.Client.Status().Update(ctx, user)
+	return reconcile.Result{RequeueAfter: 5 * time.Minute}, r.updateStatusIfChanged(ctx, user, statusBefore)
 }
 
 // clearKeyStatus resets any status fields that reflect B2 state so that the
@@ -549,4 +552,16 @@ func shouldDelete(mp xpv1.ManagementPolicies) bool {
 		}
 	}
 	return false
+}
+
+// updateStatusIfChanged writes the status back to the API only when something
+// actually changed. An unchanged status write still bumps the resourceVersion,
+// which re-triggers this controller's own watch and re-enqueues the item
+// immediately, bypassing the rate limiter. Skipping the write when nothing
+// changed breaks that hot loop.
+func (r *UserReconciler) updateStatusIfChanged(ctx context.Context, x *backblazev1beta1.User, before *backblazev1beta1.UserStatus) error {
+	if reflect.DeepEqual(before, &x.Status) {
+		return nil
+	}
+	return r.Client.Status().Update(ctx, x)
 }

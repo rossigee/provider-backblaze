@@ -18,6 +18,7 @@ package notification
 
 import (
 	"context"
+	"reflect"
 	"strings"
 	"time"
 
@@ -83,6 +84,8 @@ func (r *NotificationReconciler) Reconcile(ctx context.Context, req reconcile.Re
 		return reconcile.Result{}, err
 	}
 
+	statusBefore := n.Status.DeepCopy()
+
 	logger.Info("Reconciling bucket notification", "name", n.GetNotificationName())
 
 	if !n.GetDeletionTimestamp().IsZero() {
@@ -94,7 +97,7 @@ func (r *NotificationReconciler) Reconcile(ctx context.Context, req reconcile.Re
 		logger.Error(err, "Failed to create Backblaze client")
 		r.setReady(n, "False", "ClientError", err.Error())
 		r.emit(n, "ClientError", err)
-		return reconcile.Result{RequeueAfter: cacheRequeue(err)}, r.Client.Status().Update(ctx, n)
+		return reconcile.Result{RequeueAfter: cacheRequeue(err)}, r.updateStatusIfChanged(ctx, n, statusBefore)
 	}
 
 	bucketID, accountID, err := resolveBucket(ctx, svc, n)
@@ -102,7 +105,7 @@ func (r *NotificationReconciler) Reconcile(ctx context.Context, req reconcile.Re
 		logger.Error(err, "Failed to resolve target bucket")
 		r.setReady(n, "False", "BucketResolve", err.Error())
 		r.emit(n, "BucketResolveError", err)
-		return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, n)
+		return reconcile.Result{RequeueAfter: time.Minute}, r.updateStatusIfChanged(ctx, n, statusBefore)
 	}
 
 	meta.SetExternalName(n, strings.Join([]string{bucketID, n.GetNotificationName()}, "/"))
@@ -117,7 +120,7 @@ func (r *NotificationReconciler) Reconcile(ctx context.Context, req reconcile.Re
 			logger.Error(err, "Failed to list event notifications")
 			r.setReady(n, "False", "ObserveError", err.Error())
 			r.emit(n, "ObserveError", err)
-			return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, n)
+			return reconcile.Result{RequeueAfter: time.Minute}, r.updateStatusIfChanged(ctx, n, statusBefore)
 		}
 		for _, rule := range listed.Notifications {
 			if rule.NotificationID == n.Status.AtProvider.NotificationID {
@@ -136,7 +139,7 @@ func (r *NotificationReconciler) Reconcile(ctx context.Context, req reconcile.Re
 		if !shouldCreate(n.GetManagementPolicies()) {
 			logger.Info("Skipping notification creation due to managementPolicies")
 			r.setReady(n, "False", "ObserveOnly", "External notification does not exist and creation is disabled")
-			return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, n)
+			return reconcile.Result{RequeueAfter: time.Minute}, r.updateStatusIfChanged(ctx, n, statusBefore)
 		}
 		created, err := svc.B2CreateEventNotification(ctx, clients.B2CreateEventNotificationRequest{
 			AccountID:   accountID,
@@ -151,7 +154,7 @@ func (r *NotificationReconciler) Reconcile(ctx context.Context, req reconcile.Re
 			logger.Error(err, "Failed to create event notification")
 			r.setReady(n, "False", errCreateNotification, err.Error())
 			r.emit(n, "CreateError", err)
-			return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, n)
+			return reconcile.Result{RequeueAfter: time.Minute}, r.updateStatusIfChanged(ctx, n, statusBefore)
 		}
 		n.Status.AtProvider.NotificationID = created.NotificationID
 		n.Status.AtProvider.BucketID = bucketID
@@ -160,7 +163,7 @@ func (r *NotificationReconciler) Reconcile(ctx context.Context, req reconcile.Re
 		// Drift: patch in place via b2_update_event_notification.
 		if !shouldCreate(n.GetManagementPolicies()) {
 			r.setReady(n, "False", "ObserveOnly", "Drift detected but managementPolicies disallows update")
-			return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, n)
+			return reconcile.Result{RequeueAfter: time.Minute}, r.updateStatusIfChanged(ctx, n, statusBefore)
 		}
 		_, err := svc.B2UpdateEventNotification(ctx, clients.B2UpdateEventNotificationRequest{
 			AccountID:      accountID,
@@ -176,7 +179,7 @@ func (r *NotificationReconciler) Reconcile(ctx context.Context, req reconcile.Re
 			logger.Error(err, "Failed to update event notification")
 			r.setReady(n, "False", errUpdateNotification, err.Error())
 			r.emit(n, "UpdateError", err)
-			return reconcile.Result{RequeueAfter: time.Minute}, r.Client.Status().Update(ctx, n)
+			return reconcile.Result{RequeueAfter: time.Minute}, r.updateStatusIfChanged(ctx, n, statusBefore)
 		}
 		n.Status.AtProvider.Events = n.Spec.ForProvider.Events
 	}
@@ -184,7 +187,7 @@ func (r *NotificationReconciler) Reconcile(ctx context.Context, req reconcile.Re
 	r.setReady(n, "True", "Available", "Notification is active")
 	r.setSynced(n, "True", "ReconcileSuccess", "Successfully reconciled")
 
-	return reconcile.Result{RequeueAfter: 5 * time.Minute}, r.Client.Status().Update(ctx, n)
+	return reconcile.Result{RequeueAfter: 5 * time.Minute}, r.updateStatusIfChanged(ctx, n, statusBefore)
 }
 
 func (r *NotificationReconciler) handleDeletion(ctx context.Context, n *backblazev1beta1.BucketNotification) (reconcile.Result, error) {
@@ -355,4 +358,16 @@ func shouldDelete(mp xpv1.ManagementPolicies) bool {
 		}
 	}
 	return false
+}
+
+// updateStatusIfChanged writes the status back to the API only when something
+// actually changed. An unchanged status write still bumps the resourceVersion,
+// which re-triggers this controller's own watch and re-enqueues the item
+// immediately, bypassing the rate limiter. Skipping the write when nothing
+// changed breaks that hot loop.
+func (r *NotificationReconciler) updateStatusIfChanged(ctx context.Context, x *backblazev1beta1.BucketNotification, before *backblazev1beta1.NotificationStatus) error {
+	if reflect.DeepEqual(before, &x.Status) {
+		return nil
+	}
+	return r.Client.Status().Update(ctx, x)
 }
