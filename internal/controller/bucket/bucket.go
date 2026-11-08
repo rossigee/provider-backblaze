@@ -173,8 +173,11 @@ func (r *BucketReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 		}
 		logger.Info("Creating bucket", "bucketName", bucketName, "bucketType", bucketType)
 		info := clients.B2BucketInfo(bucket.Spec.ForProvider.BucketInfo)
+		// The bucket does not exist yet, so there is no summary to read the
+		// account ID from. The authorisation response carries the account the
+		// key belongs to, which is the account the bucket is created in.
 		created, err := service.B2CreateBucket(ctx, clients.B2CreateBucketRequest{
-			AccountID:  current.AccountID,
+			AccountID:  service.AccountID,
 			BucketName: bucketName,
 			BucketType: bucketType,
 			BucketInfo: &info,
