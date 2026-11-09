@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Terraform import compatibility
 - Cross-region replication support
 
+## [0.19.7] - 2026-11-09
+
+### Fixed
+- Condition messages no longer include the per-request B2 `RequestID` and `HostID`, so repeated identical failures no longer rewrite status and re-trigger reconciles (#28).
+
 ## [0.19.2] - 2026-09-24
 
 ### Changed
