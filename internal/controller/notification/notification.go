@@ -38,6 +38,7 @@ import (
 	backblazev1beta1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1beta1"
 	apisv1beta1 "github.com/rossigee/provider-backblaze/apis/v1beta1"
 	"github.com/rossigee/provider-backblaze/internal/clients"
+	"github.com/rossigee/provider-backblaze/internal/errmsg"
 )
 
 const (
@@ -301,7 +302,7 @@ func (r *NotificationReconciler) setReady(n *backblazev1beta1.BucketNotification
 		Status:             corev1.ConditionStatus(status),
 		LastTransitionTime: metav1.NewTime(time.Now()),
 		Reason:             xpv1.ConditionReason(reason),
-		Message:            msg,
+		Message:            errmsg.Stable(msg),
 	})
 }
 
@@ -311,7 +312,7 @@ func (r *NotificationReconciler) setSynced(n *backblazev1beta1.BucketNotificatio
 		Status:             corev1.ConditionStatus(status),
 		LastTransitionTime: metav1.NewTime(time.Now()),
 		Reason:             xpv1.ConditionReason(reason),
-		Message:            msg,
+		Message:            errmsg.Stable(msg),
 	})
 }
 
