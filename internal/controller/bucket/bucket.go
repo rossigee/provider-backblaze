@@ -42,6 +42,7 @@ import (
 	backblazev1beta1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1beta1"
 	apisv1beta1 "github.com/rossigee/provider-backblaze/apis/v1beta1"
 	"github.com/rossigee/provider-backblaze/internal/clients"
+	"github.com/rossigee/provider-backblaze/internal/errmsg"
 )
 
 const (
@@ -688,7 +689,7 @@ func (r *BucketReconciler) setCondition(bucket *backblazev1beta1.Bucket, conditi
 		Status:             corev1.ConditionStatus(status),
 		LastTransitionTime: metav1.NewTime(time.Now()),
 		Reason:             xpv1.ConditionReason(reason),
-		Message:            message,
+		Message:            errmsg.Stable(message),
 	})
 }
 

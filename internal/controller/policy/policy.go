@@ -32,6 +32,7 @@ import (
 	backblazev1beta1 "github.com/rossigee/provider-backblaze/apis/backblaze/v1beta1"
 	apisv1beta1 "github.com/rossigee/provider-backblaze/apis/v1beta1"
 	"github.com/rossigee/provider-backblaze/internal/clients"
+	"github.com/rossigee/provider-backblaze/internal/errmsg"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -348,7 +349,7 @@ func (r *PolicyReconciler) setCondition(policy *backblazev1beta1.Policy, conditi
 		Status:             corev1.ConditionStatus(status),
 		LastTransitionTime: metav1.NewTime(time.Now()),
 		Reason:             xpv1.ConditionReason(reason),
-		Message:            message,
+		Message:            errmsg.Stable(message),
 	})
 }
 
