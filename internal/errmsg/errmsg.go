@@ -42,8 +42,8 @@ func Stable(errMsg string) string {
 	s = hostID.ReplaceAllString(s, "")
 	s = emptyParts.ReplaceAllString(s, ",")
 	s = multiSpace.ReplaceAllString(s, " ")
-	s = strings.TrimSpace(strings.TrimPrefix(s, " "))
-	// A leading ", " after stripping "	key: value," pairs is cleaned up.
-	s = strings.TrimPrefix(s, ", ")
-	return s
+	s = strings.TrimSpace(s)
+	// Stripping an identifier at the start of the message can leave a
+	// dangling leading separator.
+	return strings.TrimPrefix(s, ", ")
 }

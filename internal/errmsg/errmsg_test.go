@@ -40,6 +40,11 @@ func TestStable(t *testing.T) {
 			want: "failed to delete bucket cors configuration: operation error S3: DeleteBucketCors, https response error StatusCode: 400, api error InvalidRequest: The bucket contains B2 Native CORS rules. Please use B2 Native API instead.",
 		},
 		{
+			name: "leading id leaves no dangling separator",
+			in:   "RequestID: 507edb70c09b5994, api error NoSuchBucket: missing",
+			want: "api error NoSuchBucket: missing",
+		},
+		{
 			name: "no ids left untouched",
 			in:   "some plain error message",
 			want: "some plain error message",
