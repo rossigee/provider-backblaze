@@ -19,6 +19,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Condition messages no longer include the per-request B2 `RequestID` and `HostID`, so repeated identical failures no longer rewrite status and re-trigger reconciles (#28).
 
+## [0.19.6] - 2026-11-09
+
+### Fixed
+- Buckets are created with the authorisation account ID (#27).
+
+## [0.19.5] - 2026-11-08
+
+### Changed
+- Bumped golangci-lint to v2.15.0, moved to the nested build submodule, and updated Go dependencies (#24).
+- Pinned crossplane-runtime to v2.5.0-dev (#25).
+
+### Fixed
+- Controllers no longer write status when nothing changed, so no-op reconciles stop re-triggering themselves (#26).
+
+## [0.19.4] - 2026-11-07
+
+### Changed
+- Stopped aggregating core-group RBAC into the view/edit roles (#18).
+- Pinned GitHub Actions to commit SHAs and aligned scanner versions (#22).
+- Removed the local `.golangci.yml` in favour of the build submodule lint config (#21).
+- Switched local build artifacts to `COPY` instead of `ADD` (#19).
+- Updated pinned install and package versions to current releases (#20).
+
+### Fixed
+- Recognised B2's CORS error code spelling (#23).
+
+## [0.19.3] - 2026-10-26
+
+### Changed
+- Upgraded to Crossplane 2.5, Go 1.27.2 and golangci-lint 2.14.0 (#15).
+- Built with Go 1.27.3 and pinned the scanner actions (#16).
+- Bumped crossplane-runtime to v2.5.1 (#17).
+
 ## [0.19.2] - 2026-09-24
 
 ### Changed
