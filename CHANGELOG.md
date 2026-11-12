@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Terraform import compatibility
 - Cross-region replication support
 
+## [0.19.8] - 2026-11-12
+
+### Changed
+- Built with Go 1.27.4 (previously 1.27.3).
+
 ## [0.19.7] - 2026-11-09
 
 ### Fixed
